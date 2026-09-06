@@ -167,3 +167,28 @@
   .account-actions .page-cta{justify-content:center}
 }
 a:not([href]){cursor:pointer}
+.suggestion-list button.is-active{background:var(--mint)}
+.suggestion-list button small{color:var(--muted);font-size:11px;font-weight:400}
+.suggest-lift{position:relative;z-index:5}
+/* Location suggestions read as plain text, not bold labels */
+.field-content .suggestion-list button{font-weight:500}
+.field-content .suggestion-list button span{font-weight:500}
+
+/* Real maps (Leaflet). The decorative markup stays as an offline fallback
+   until the library reports in, so the panel is never blank. */
+.leaflet-container{width:100%;height:100%;background:#e4eee8;font:inherit}
+.map-canvas .leaflet-container{border-radius:0}
+.profile-map .leaflet-container{min-height:390px}
+.map-marker{display:flex;align-items:center;justify-content:center;width:31px;height:31px;border:4px solid var(--white);border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:var(--coral);box-shadow:0 3px 8px rgba(24,42,45,.25);color:var(--white);font-size:12px;font-weight:700}
+.map-marker span{transform:rotate(45deg)}
+.map-marker.active{background:var(--teal);transform:rotate(-45deg) scale(1.15)}
+.leaflet-popup-content-wrapper{border-radius:8px;box-shadow:0 10px 26px rgba(24,42,45,.18)}
+.leaflet-popup-content{margin:12px 14px;font-family:"DM Sans",sans-serif;font-size:12px;color:var(--ink)}
+.leaflet-popup-content strong{display:block;font:700 13px Manrope,sans-serif}
+.leaflet-popup-content small{color:var(--muted)}
+.leaflet-container a.leaflet-popup-close-button{color:var(--muted)}
+.leaflet-control-attribution{font-size:9px}
+.leaflet-control-attribution a{color:var(--teal)}
+/* Keep the address card above Leaflet's map panes */
+.profile-map .profile-map-address{z-index:600}
+.profile-map .leaflet-control-container{z-index:500}

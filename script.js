@@ -528,3 +528,233 @@ document.querySelector('#provider-search-form').addEventListener('submit', (even
   render();
   guard();
 })();
+
+/* Location autocomplete for the hero and provider search fields. Reuses the
+   .suggestion-list styles that were already in the sheet but unwired. */
+(() => {
+  const LOCATIONS = [
+    { city: 'New York, NY', zip: '10024' },
+    { city: 'Brooklyn, NY', zip: '11201' },
+    { city: 'Queens, NY', zip: '11101' },
+    { city: 'Jersey City, NJ', zip: '07302' },
+    { city: 'Seattle, WA', zip: '98101' },
+    { city: 'Bellevue, WA', zip: '98004' },
+    { city: 'Edmonds, WA', zip: '98020' },
+    { city: 'Redmond, WA', zip: '98052' },
+    { city: 'Mill Creek, WA', zip: '98012' },
+    { city: 'Everett, WA', zip: '98201' },
+    { city: 'Tacoma, WA', zip: '98402' },
+    { city: 'Renton, WA', zip: '98055' },
+    { city: 'Spokane, WA', zip: '99201' },
+    { city: 'Portland, OR', zip: '97205' },
+    { city: 'Los Angeles, CA', zip: '90012' },
+    { city: 'Chicago, IL', zip: '60601' },
+  ];
+  const LIMIT = 6;
+
+  const matches = (term) => {
+    const needle = term.trim().toLowerCase();
+    if (!needle) return LOCATIONS.slice(0, 5);
+    const starts = LOCATIONS.filter((place) => place.city.toLowerCase().startsWith(needle) || place.zip.startsWith(needle));
+    /* Match later words too ("york" -> New York), but not mid-word noise
+       ("se" should not surface Jersey City). */
+    const words = LOCATIONS.filter((place) => !starts.includes(place)
+      && place.city.toLowerCase().split(/[\s,]+/).some((word) => word.startsWith(needle)));
+    return [...starts, ...words].slice(0, LIMIT);
+  };
+
+  const attach = (input, id) => {
+    if (!input) return;
+    const list = document.createElement('div');
+    list.className = 'suggestion-list';
+    list.id = `${id}-suggestions`;
+    list.setAttribute('role', 'listbox');
+    list.hidden = true;
+    input.parentElement.appendChild(list);
+    input.setAttribute('role', 'combobox');
+    input.setAttribute('aria-autocomplete', 'list');
+    input.setAttribute('aria-expanded', 'false');
+    input.setAttribute('aria-controls', list.id);
+    input.setAttribute('autocomplete', 'off');
+
+    let options = [];
+    let active = -1;
+    let silent = false;
+
+    let lifted = [];
+
+    const close = () => {
+      list.hidden = true;
+      lifted.forEach((node) => node.classList.remove('suggest-lift'));
+      lifted = [];
+      input.setAttribute('aria-expanded', 'false');
+      input.removeAttribute('aria-activedescendant');
+      active = -1;
+    };
+
+    const setActive = (index) => {
+      active = index;
+      options.forEach((option, i) => option.classList.toggle('is-active', i === index));
+      if (index > -1) {
+        input.setAttribute('aria-activedescendant', options[index].id);
+        options[index].scrollIntoView({ block: 'nearest' });
+      } else {
+        input.removeAttribute('aria-activedescendant');
+      }
+    };
+
+    const choose = (place) => {
+      input.value = place.city;
+      /* Let listeners see the change without the event reopening the list. */
+      silent = true;
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      silent = false;
+      close();
+    };
+
+    const open = () => {
+      const found = matches(input.value);
+      if (!found.length) { close(); return; }
+      list.textContent = '';
+      options = found.map((place, index) => {
+        const option = document.createElement('button');
+        option.type = 'button';
+        option.id = `${id}-suggestion-${index}`;
+        option.setAttribute('role', 'option');
+        option.innerHTML = `<span></span><small></small>`;
+        option.firstChild.textContent = place.city;
+        option.lastChild.textContent = place.zip;
+        option.addEventListener('mousedown', (event) => { event.preventDefault(); choose(place); });
+        list.appendChild(option);
+        return option;
+      });
+      list.hidden = false;
+      /* Neighbouring sections create stacking contexts, so lift the ancestors
+         while the list is open (same reason as the select menus). */
+      for (let node = list.parentElement; node && node !== document.body; node = node.parentElement) {
+        node.classList.add('suggest-lift');
+        lifted.push(node);
+      }
+      input.setAttribute('aria-expanded', 'true');
+      setActive(-1);
+    };
+
+    input.addEventListener('focus', open);
+    input.addEventListener('input', () => { if (!silent) open(); });
+    input.addEventListener('blur', () => setTimeout(close, 120));
+    input.addEventListener('keydown', (event) => {
+      if (list.hidden) {
+        if (event.key === 'ArrowDown') { event.preventDefault(); open(); }
+        return;
+      }
+      if (event.key === 'ArrowDown') { event.preventDefault(); setActive((active + 1) % options.length); }
+      else if (event.key === 'ArrowUp') { event.preventDefault(); setActive(active <= 0 ? options.length - 1 : active - 1); }
+      else if (event.key === 'Escape') { close(); }
+      else if (event.key === 'Enter' && active > -1) { event.preventDefault(); options[active].dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); }
+      else if (event.key === 'Tab') { close(); }
+    });
+  };
+
+  attach(document.querySelector('#search-form input[aria-label="Location"]'), 'hero-location');
+  attach(document.querySelector('#provider-search-location'), 'provider-location');
+})();
+
+/* Real maps via Leaflet + OpenStreetMap tiles. The hand-drawn map markup is
+   left in place and only replaced once the library has actually loaded, so a
+   blocked CDN or offline session still shows the stylised fallback. */
+(() => {
+  const PROVIDERS = [
+    { name: 'Harbor Health Chiropractic', detail: 'Chiropractic care · 0.8 mi', street: '218 West 79th Street', coords: [40.7829, -73.9787] },
+    { name: 'Northstar Spine & Rehab', detail: 'Rehabilitation · 1.6 mi', street: '104 West 40th Street', coords: [40.7549, -73.984] },
+    { name: 'The Motion Clinic', detail: 'Auto injury · 2.1 mi', street: '245 Tenth Avenue', coords: [40.7465, -74.0014] },
+  ];
+  const TILES = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+  const ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+
+  const pin = (label, active) => L.divIcon({
+    className: '',
+    html: `<div class="map-marker${active ? ' active' : ''}"><span>${label}</span></div>`,
+    iconSize: [31, 31],
+    iconAnchor: [15, 30],
+    popupAnchor: [0, -28],
+  });
+
+  const BOUNDS = () => L.latLngBounds(PROVIDERS.map((provider) => provider.coords));
+  let resultsMap = null;
+  let profileMap = null;
+  let profileMarker = null;
+  let profileAddress = null;
+
+  /* Fitting while the panel is hidden gives a 0x0 container and a max-zoom
+     view, so refit whenever it becomes visible. */
+  const fitResults = () => {
+    if (!resultsMap) return;
+    resultsMap.invalidateSize();
+    resultsMap.fitBounds(BOUNDS(), { padding: [45, 45] });
+  };
+
+  const buildResultsMap = () => {
+    const canvas = document.querySelector('.map-canvas');
+    if (!canvas) return;
+    canvas.textContent = '';
+    resultsMap = L.map(canvas, { scrollWheelZoom: false, attributionControl: true });
+    L.tileLayer(TILES, { attribution: ATTRIBUTION, maxZoom: 19 }).addTo(resultsMap);
+    const markers = PROVIDERS.map((provider, index) => {
+      const marker = L.marker(provider.coords, {
+        icon: pin(index + 1, index === 0),
+        title: provider.name,
+        alt: provider.name,
+      }).addTo(resultsMap);
+      marker.bindPopup(`<strong>${provider.name}</strong><small>${provider.detail}</small>`);
+      marker.on('click', () => markers.forEach((item, i) => item.setIcon(pin(i + 1, item === marker))));
+      return marker;
+    });
+    fitResults();
+  };
+
+  const buildProfileMap = () => {
+    const container = document.querySelector('.profile-map');
+    if (!container) return;
+    profileAddress = container.querySelector('.profile-map-address');
+    const address = profileAddress;
+    container.textContent = '';
+    const canvas = document.createElement('div');
+    canvas.style.cssText = 'position:absolute;inset:0';
+    container.appendChild(canvas);
+    if (address) container.appendChild(address);
+    profileMap = L.map(canvas, { scrollWheelZoom: false, zoomControl: false }).setView(PROVIDERS[0].coords, 15);
+    L.control.zoom({ position: 'topright' }).addTo(profileMap);
+    L.tileLayer(TILES, { attribution: ATTRIBUTION, maxZoom: 19 }).addTo(profileMap);
+    profileMarker = L.marker(PROVIDERS[0].coords, { icon: pin('●', true), alt: PROVIDERS[0].name }).addTo(profileMap);
+  };
+
+  const focusProfile = (name) => {
+    const provider = PROVIDERS.find((item) => item.name === name) || PROVIDERS[0];
+    if (!profileMap) return;
+    profileMap.setView(provider.coords, 15);
+    if (profileMarker) profileMarker.setLatLng(provider.coords);
+    if (profileAddress) {
+      profileAddress.querySelector('strong').textContent = provider.name;
+      profileAddress.querySelector('span').textContent = provider.street;
+    }
+    const dialogAddress = document.querySelector('#dialog-provider-address');
+    if (dialogAddress) dialogAddress.textContent = `${provider.street}, New York`;
+  };
+
+  const start = () => {
+    if (typeof L === 'undefined') return;
+    buildResultsMap();
+    buildProfileMap();
+    /* Leaflet needs a resize nudge whenever a hidden container is revealed. */
+    [listView, mapView].forEach((button) => button.addEventListener('click', () => setTimeout(fitResults, 60)));
+    new MutationObserver(() => {
+      if (!providerDialog.open || !profileMap) return;
+      focusProfile(document.querySelector('#dialog-provider-name').textContent.trim());
+      setTimeout(() => profileMap.invalidateSize(), 60);
+    }).observe(providerDialog, { attributes: true, attributeFilter: ['open'] });
+    window.addEventListener('resize', () => { if (resultsMap) resultsMap.invalidateSize(); });
+  };
+
+  if (document.readyState === 'complete') start();
+  else window.addEventListener('load', start);
+})();
