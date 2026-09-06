@@ -192,3 +192,14 @@ a:not([href]){cursor:pointer}
 /* Keep the address card above Leaflet's map panes */
 .profile-map .profile-map-address{z-index:600}
 .profile-map .leaflet-control-container{z-index:500}
+/* Create account + password reset */
+.auth-terms{align-items:flex-start;margin:2px 0 20px;line-height:1.6}
+.auth-terms input{margin-top:2px}
+.auth-terms a{color:var(--teal);font-weight:700}
+#reset-dialog h2{margin-bottom:8px}
+#reset-dialog .dialog-help{margin:0 0 4px}
+#reset-dialog .auth-error{margin:0 0 12px}
+#reset-dialog .dialog-book{width:100%;justify-content:center;gap:8px}
+.dialog-sent{margin:16px 0 0;padding:13px 14px;border-radius:8px;background:var(--mint);color:var(--teal);font-size:13px;font-weight:700}
+.dialog-sent[hidden]{display:none}
+.reset-back{display:block;margin:16px auto 0;border:0;background:none;color:var(--muted);font-size:12px;font-weight:700}

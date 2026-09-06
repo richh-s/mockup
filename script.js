@@ -456,6 +456,7 @@ document.querySelector('#provider-search-form').addEventListener('submit', (even
   const reveal = document.querySelector('.auth-reveal');
   if (!accountButton || !form) return;
 
+  const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   let session = null;
 
   const notify = (message) => {
@@ -478,18 +479,19 @@ document.querySelector('#provider-search-form').addEventListener('submit', (even
 
   accountButton.addEventListener('click', () => { window.location.hash = session ? 'account' : 'signin'; });
 
-  reveal.addEventListener('click', () => {
-    const shown = password.type === 'text';
-    password.type = shown ? 'password' : 'text';
-    reveal.textContent = shown ? 'Show' : 'Hide';
-    reveal.setAttribute('aria-label', shown ? 'Show password' : 'Hide password');
-    password.focus();
-  });
+  document.querySelectorAll('.auth-reveal').forEach((button) => button.addEventListener('click', () => {
+    const field = button.previousElementSibling;
+    const shown = field.type === 'text';
+    field.type = shown ? 'password' : 'text';
+    button.textContent = shown ? 'Show' : 'Hide';
+    button.setAttribute('aria-label', shown ? 'Show password' : 'Hide password');
+    field.focus();
+  }));
 
   form.addEventListener('submit', (event) => {
     event.preventDefault();
     const address = email.value.trim();
-    const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address);
+    const emailValid = EMAIL.test(address);
     if (!emailValid || !password.value) {
       error.hidden = false;
       error.textContent = !emailValid
@@ -522,8 +524,71 @@ document.querySelector('#provider-search-form').addEventListener('submit', (even
   };
   window.addEventListener('hashchange', guard);
 
-  document.querySelector('#forgot-password').addEventListener('click', () => notify('Password reset links are not part of this prototype.'));
-  document.querySelector('#create-account').addEventListener('click', () => notify('Account creation is not part of this prototype.'));
+  /* Create account */
+  const signupForm = document.querySelector('#signup-form');
+  const signupName = document.querySelector('#signup-name');
+  const signupEmail = document.querySelector('#signup-email');
+  const signupPassword = document.querySelector('#signup-password');
+  const signupTerms = document.querySelector('#signup-terms');
+  const signupError = document.querySelector('#signup-error');
+
+  signupForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const name = signupName.value.trim();
+    const address = signupEmail.value.trim();
+    const problem = !name ? [signupName, 'Enter your name to continue.']
+      : !EMAIL.test(address) ? [signupEmail, address ? 'Enter a valid email address.' : 'Enter your email address to continue.']
+      : signupPassword.value.length < 8 ? [signupPassword, 'Use a password of at least 8 characters.']
+      : !signupTerms.checked ? [signupTerms, 'Please accept the Terms of Use to continue.']
+      : null;
+    if (problem) {
+      signupError.hidden = false;
+      signupError.textContent = problem[1];
+      problem[0].focus();
+      return;
+    }
+    signupError.hidden = true;
+    session = { email: address, name };
+    render();
+    signupForm.reset();
+    window.location.hash = 'account';
+    notify(`Welcome to Injurvia, ${name.split(' ')[0]}.`);
+  });
+
+  document.querySelector('#create-account').addEventListener('click', () => { window.location.hash = 'signup'; });
+  document.querySelector('#go-signin').addEventListener('click', () => { window.location.hash = 'signin'; });
+
+  /* Forgot password */
+  const resetDialog = document.querySelector('#reset-dialog');
+  const resetForm = document.querySelector('#reset-form');
+  const resetEmail = document.querySelector('#reset-email');
+  const resetError = document.querySelector('#reset-error');
+  const resetSent = document.querySelector('#reset-sent');
+
+  document.querySelector('#forgot-password').addEventListener('click', () => {
+    resetEmail.value = email.value.trim();
+    resetError.hidden = true;
+    resetSent.hidden = true;
+    resetForm.hidden = false;
+    resetDialog.showModal();
+    resetEmail.focus();
+  });
+
+  resetForm.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const address = resetEmail.value.trim();
+    if (!EMAIL.test(address)) {
+      resetError.hidden = false;
+      resetEmail.focus();
+      return;
+    }
+    resetError.hidden = true;
+    resetForm.hidden = true;
+    resetSent.hidden = false;
+    notify(`Reset link sent to ${address}.`);
+  });
+
+  document.querySelector('#reset-back').addEventListener('click', () => resetDialog.close());
   document.querySelector('.account-edit').addEventListener('click', () => notify('Editing is not part of this prototype.'));
   render();
   guard();
