@@ -34,7 +34,7 @@ function applyFilters() {
 
 form.addEventListener('submit', (event) => {
   event.preventDefault();
-  const term = specialtyInput.value.trim() || 'Chiropractor';
+  const term = specialtyInput.value.trim();
   updateHeading();
   form.classList.add('is-searching');
   setTimeout(() => form.classList.remove('is-searching'), 600);
@@ -55,6 +55,7 @@ document.querySelectorAll('.save-button').forEach((button) => button.addEventLis
 }));
 document.querySelectorAll('.popular-searches button').forEach((button) => button.addEventListener('click', () => {
   specialtyInput.value = button.textContent;
+  specialtyInput.dispatchEvent(new Event('change'));
   form.dispatchEvent(new Event('submit'));
 }));
 
@@ -143,7 +144,7 @@ document.querySelector('.medical-search-close').addEventListener('click', () => 
 });
 document.querySelector('#medical-search-form').addEventListener('submit', (event) => {
   event.preventDefault();
-  toast.textContent = `Showing providers for ${document.querySelector('#medical-specialty').value}.`;
+  toast.textContent = `Showing providers for ${document.querySelector('#medical-specialty').value.trim() || 'all specialties'}.`;
   toast.classList.add('show');
   setTimeout(() => toast.classList.remove('show'), 2400);
 });
@@ -233,3 +234,159 @@ document.querySelector('#provider-search-form').addEventListener('submit', (even
   setTimeout(() => toast.classList.remove('show'), 2400);
   document.querySelector('#provider-directory-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
 });
+/* Replace native select popups with a styled, scrollable listbox. The original
+   select stays in the DOM and in sync, so existing value/change code keeps working. */
+(() => {
+  let open = null;
+  let seq = 0;
+
+  const enhance = (select) => {
+    const id = `cs-${seq += 1}`;
+    const wrap = document.createElement('div');
+    wrap.className = 'cs';
+    select.parentNode.insertBefore(wrap, select);
+    wrap.appendChild(select);
+    select.classList.add('cs-native');
+    select.tabIndex = -1;
+    select.setAttribute('aria-hidden', 'true');
+    wrap.parentElement.querySelectorAll(':scope > span[aria-hidden="true"]').forEach((span) => { span.hidden = true; });
+
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.id = `${id}-button`;
+    button.className = 'cs-button';
+    button.setAttribute('aria-haspopup', 'listbox');
+    button.setAttribute('aria-expanded', 'false');
+    button.setAttribute('aria-controls', `${id}-panel`);
+    if (select.getAttribute('aria-label')) button.setAttribute('aria-label', select.getAttribute('aria-label'));
+    const value = document.createElement('span');
+    value.className = 'cs-value';
+    const caret = document.createElement('span');
+    caret.className = 'cs-caret';
+    caret.setAttribute('aria-hidden', 'true');
+    caret.textContent = '⌄';
+    button.append(value, caret);
+
+    const panel = document.createElement('ul');
+    panel.id = `${id}-panel`;
+    panel.className = 'cs-panel';
+    panel.setAttribute('role', 'listbox');
+    panel.hidden = true;
+    const options = [...select.options].map((option, index) => {
+      const item = document.createElement('li');
+      item.id = `${id}-option-${index}`;
+      item.className = 'cs-option';
+      item.setAttribute('role', 'option');
+      item.dataset.index = String(index);
+      const check = document.createElement('span');
+      check.className = 'cs-check';
+      check.setAttribute('aria-hidden', 'true');
+      check.textContent = '✓';
+      const text = document.createElement('span');
+      text.textContent = option.textContent;
+      item.append(check, text);
+      panel.appendChild(item);
+      return item;
+    });
+    wrap.append(button, panel);
+
+    if (select.id) {
+      const label = document.querySelector(`label[for="${select.id}"]`);
+      if (label) label.setAttribute('for', button.id);
+    }
+
+    let active = select.selectedIndex;
+
+    const paint = () => {
+      const current = select.options[select.selectedIndex];
+      value.textContent = current ? current.textContent : '';
+      value.classList.toggle('is-placeholder', Boolean(current) && current.value === '');
+      options.forEach((item, index) => {
+        item.setAttribute('aria-selected', String(index === select.selectedIndex));
+        item.classList.toggle('is-active', index === active);
+      });
+    };
+
+    const setActive = (index) => {
+      active = Math.max(0, Math.min(options.length - 1, index));
+      button.setAttribute('aria-activedescendant', options[active].id);
+      paint();
+      options[active].scrollIntoView({ block: 'nearest' });
+    };
+
+    let lifted = [];
+
+    const close = (focus) => {
+      if (panel.hidden) return;
+      panel.hidden = true;
+      lifted.forEach((node) => node.classList.remove('cs-lift'));
+      lifted = [];
+      wrap.classList.remove('is-open', 'is-up');
+      button.setAttribute('aria-expanded', 'false');
+      button.removeAttribute('aria-activedescendant');
+      open = null;
+      if (focus) button.focus();
+    };
+
+    const show = () => {
+      if (open && open !== close) open(false);
+      panel.hidden = false;
+      /* Sibling sections create stacking contexts (filling page-in animations),
+         so lift this menu's ancestors while it is open. */
+      for (let node = wrap.parentElement; node && node !== document.body; node = node.parentElement) {
+        node.classList.add('cs-lift');
+        lifted.push(node);
+      }
+      wrap.classList.add('is-open');
+      button.setAttribute('aria-expanded', 'true');
+      open = close;
+      const box = button.getBoundingClientRect();
+      const height = panel.offsetHeight;
+      wrap.classList.toggle('is-up', box.bottom + height + 16 > window.innerHeight && box.top > height + 16);
+      setActive(select.selectedIndex);
+    };
+
+    const choose = (index) => {
+      const changed = index !== select.selectedIndex;
+      select.selectedIndex = index;
+      active = index;
+      paint();
+      close(true);
+      if (changed) select.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+
+    wrap.addEventListener('click', (event) => event.preventDefault());
+    button.addEventListener('click', () => (panel.hidden ? show() : close(true)));
+    panel.addEventListener('mousedown', (event) => {
+      const item = event.target.closest('.cs-option');
+      if (item) choose(Number(item.dataset.index));
+    });
+    panel.addEventListener('mousemove', (event) => {
+      const item = event.target.closest('.cs-option');
+      if (item) setActive(Number(item.dataset.index));
+    });
+    button.addEventListener('keydown', (event) => {
+      const key = event.key;
+      if (panel.hidden) {
+        if (['ArrowDown', 'ArrowUp', 'Enter', ' '].includes(key)) { event.preventDefault(); show(); }
+        return;
+      }
+      if (key === 'Escape' || key === 'Tab') { close(key === 'Escape'); return; }
+      if (key === 'ArrowDown') { event.preventDefault(); setActive(active + 1); }
+      else if (key === 'ArrowUp') { event.preventDefault(); setActive(active - 1); }
+      else if (key === 'Home') { event.preventDefault(); setActive(0); }
+      else if (key === 'End') { event.preventDefault(); setActive(options.length - 1); }
+      else if (key === 'Enter' || key === ' ') { event.preventDefault(); choose(active); }
+      else if (key.length === 1) {
+        const match = [...select.options].findIndex((option) => option.textContent.toLowerCase().startsWith(key.toLowerCase()));
+        if (match > -1) setActive(match);
+      }
+    });
+    button.addEventListener('blur', () => close(false));
+    select.addEventListener('change', paint);
+    paint();
+  };
+
+  document.querySelectorAll('select').forEach(enhance);
+  document.addEventListener('click', (event) => { if (open && !event.target.closest('.cs')) open(false); }, true);
+})();
