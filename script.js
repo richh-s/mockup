@@ -91,7 +91,7 @@ document.addEventListener('click', (event) => {
   }
   window.location.hash = 'medical-providers';
 });
-document.querySelector('.account-button').addEventListener('click', () => { window.location.hash = 'account'; });
+/* .account-button is wired in the auth block at the end of this file. */
 document.querySelectorAll('.account-action').forEach((button) => button.addEventListener('click', () => { toast.textContent = `${button.textContent.replace(' →', '')} is ready for the full account flow.`; toast.classList.add('show'); setTimeout(() => toast.classList.remove('show'), 3200); }));
 document.querySelectorAll('.language-button').forEach((button) => button.addEventListener('click', () => {
   document.querySelectorAll('.language-button').forEach((item) => item.classList.remove('active'));
@@ -181,6 +181,11 @@ function showRoute() {
 }
 window.addEventListener('hashchange', showRoute);
 showRoute();
+/* A cold load with a route hash lets the browser jump to the anchor, which
+   scrolls the header off screen. Pin routed pages back to the top. */
+window.addEventListener('load', () => {
+  if (document.querySelector('.page-view.active')) window.scrollTo(0, 0);
+});
 
 document.querySelector('#directory-specialty').addEventListener('change', (event) => {
   toast.textContent = `Showing ${event.target.value} providers.`;
@@ -389,4 +394,137 @@ document.querySelector('#provider-search-form').addEventListener('submit', (even
 
   document.querySelectorAll('select').forEach(enhance);
   document.addEventListener('click', (event) => { if (open && !event.target.closest('.cs')) open(false); }, true);
+})();
+
+/* Mobile navigation drawer — the ☰ button had no behaviour, leaving the site
+   unnavigable on phones. Builds the drawer from the existing nav links. */
+(() => {
+  const header = document.querySelector('.site-header');
+  const menuButton = document.querySelector('.menu-button');
+  const mainNav = document.querySelector('.main-nav');
+  if (!header || !menuButton || !mainNav) return;
+
+  const drawer = document.createElement('nav');
+  drawer.className = 'mobile-nav';
+  drawer.setAttribute('aria-label', 'Mobile navigation');
+  drawer.hidden = true;
+  mainNav.querySelectorAll('a').forEach((link) => drawer.appendChild(link.cloneNode(true)));
+  const providerLink = document.querySelector('.provider-link');
+  if (providerLink) drawer.appendChild(providerLink.cloneNode(true));
+
+  const scrim = document.createElement('div');
+  scrim.className = 'mobile-nav-scrim';
+  scrim.hidden = true;
+  header.after(drawer);
+  drawer.after(scrim);
+
+  const setOpen = (isOpen) => {
+    drawer.hidden = !isOpen;
+    scrim.hidden = !isOpen;
+    menuButton.setAttribute('aria-expanded', String(isOpen));
+    menuButton.setAttribute('aria-label', isOpen ? 'Close menu' : 'Open menu');
+    menuButton.textContent = isOpen ? '✕' : '☰';
+    document.body.style.overflow = isOpen ? 'hidden' : '';
+  };
+
+  menuButton.setAttribute('aria-expanded', 'false');
+  menuButton.setAttribute('aria-controls', 'mobile-nav');
+  drawer.id = 'mobile-nav';
+  menuButton.addEventListener('click', () => setOpen(drawer.hidden));
+  scrim.addEventListener('click', () => setOpen(false));
+  drawer.addEventListener('click', (event) => { if (event.target.closest('a,button')) setOpen(false); });
+  document.addEventListener('keydown', (event) => { if (event.key === 'Escape') setOpen(false); });
+  const syncActive = () => {
+    const links = [...mainNav.querySelectorAll('a')];
+    drawer.querySelectorAll('a').forEach((link, index) => {
+      if (links[index]) link.classList.toggle('active', links[index].classList.contains('active'));
+    });
+  };
+  window.addEventListener('hashchange', () => { setOpen(false); setTimeout(syncActive, 0); });
+  window.addEventListener('resize', () => { if (window.innerWidth > 800) setOpen(false); });
+})();
+
+/* Sign in — the header button used to drop people straight onto the logged-in
+   account page. It now routes through a real sign-in screen and carries the
+   entered email into the account view. */
+(() => {
+  const accountButton = document.querySelector('.account-button');
+  const form = document.querySelector('#signin-form');
+  const email = document.querySelector('#signin-email');
+  const password = document.querySelector('#signin-password');
+  const error = document.querySelector('#signin-error');
+  const reveal = document.querySelector('.auth-reveal');
+  if (!accountButton || !form) return;
+
+  let session = null;
+
+  const notify = (message) => {
+    toast.textContent = message;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 2400);
+  };
+
+  const nameFromEmail = (address) => address.split('@')[0].replace(/[._-]+/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+
+  const render = () => {
+    accountButton.textContent = session ? 'My account' : 'Sign in';
+    document.querySelector('#account-email').textContent = session ? session.email : 'your email will appear here';
+    document.querySelector('#account-email-detail').textContent = session ? session.email : 'your email will appear here';
+    document.querySelector('#account-name').textContent = session ? session.name : 'Your account';
+    document.querySelector('#account-avatar').textContent = session
+      ? session.name.split(' ').map((part) => part[0]).slice(0, 2).join('').toUpperCase()
+      : 'IN';
+  };
+
+  accountButton.addEventListener('click', () => { window.location.hash = session ? 'account' : 'signin'; });
+
+  reveal.addEventListener('click', () => {
+    const shown = password.type === 'text';
+    password.type = shown ? 'password' : 'text';
+    reveal.textContent = shown ? 'Show' : 'Hide';
+    reveal.setAttribute('aria-label', shown ? 'Show password' : 'Hide password');
+    password.focus();
+  });
+
+  form.addEventListener('submit', (event) => {
+    event.preventDefault();
+    const address = email.value.trim();
+    const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address);
+    if (!emailValid || !password.value) {
+      error.hidden = false;
+      error.textContent = !emailValid
+        ? (address ? 'Enter a valid email address.' : 'Enter your email address to continue.')
+        : 'Enter your password to continue.';
+      (emailValid ? password : email).focus();
+      return;
+    }
+    error.hidden = true;
+    session = { email: address, name: nameFromEmail(address) };
+    render();
+    password.value = '';
+    window.location.hash = 'account';
+    notify(`Signed in as ${address}.`);
+  });
+
+  document.querySelector('#sign-out').addEventListener('click', () => {
+    session = null;
+    render();
+    window.location.hash = 'signin';
+    notify('You have been signed out.');
+  });
+
+  /* The account route is only meaningful once signed in. */
+  const guard = () => {
+    if (!session && window.location.hash === '#account') {
+      window.location.replace('#signin');
+      notify('Sign in to view your account.');
+    }
+  };
+  window.addEventListener('hashchange', guard);
+
+  document.querySelector('#forgot-password').addEventListener('click', () => notify('Password reset links are not part of this prototype.'));
+  document.querySelector('#create-account').addEventListener('click', () => notify('Account creation is not part of this prototype.'));
+  document.querySelector('.account-edit').addEventListener('click', () => notify('Editing is not part of this prototype.'));
+  render();
+  guard();
 })();
