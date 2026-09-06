@@ -166,3 +166,4 @@
   .account-actions{flex-direction:column;align-items:stretch;gap:12px}
   .account-actions .page-cta{justify-content:center}
 }
+a:not([href]){cursor:pointer}
