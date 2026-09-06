@@ -116,7 +116,6 @@ document.querySelectorAll('.specialty-link').forEach((link) => link.addEventList
   document.querySelectorAll('.specialty-link').forEach((item) => item.classList.toggle('selected', item === link));
 }));
 const medicalSearch = document.querySelector('#medical-search');
-const suggestions = document.querySelector('#specialty-suggestions');
 function openMedicalSearchFor(term) {
   document.querySelector('#medical-specialty').value = term;
   if (window.location.hash !== '#medical-providers') {
@@ -133,25 +132,7 @@ function revealMedicalSearch() {
   medicalSearch.classList.add('is-entering');
   medicalSearch.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
-specialtyInput.addEventListener('input', () => {
-  const query = specialtyInput.value.trim().toLowerCase();
-  const matches = [...suggestions.querySelectorAll('button')].filter((button) => button.dataset.suggestion.toLowerCase().includes(query));
-  suggestions.hidden = matches.length === 0;
-  specialtyInput.setAttribute('aria-expanded', String(matches.length > 0));
-  suggestions.querySelectorAll('button').forEach((button) => { button.hidden = !matches.includes(button); });
-});
-specialtyInput.addEventListener('focus', () => specialtyInput.dispatchEvent(new Event('input')));
-suggestions.querySelectorAll('button').forEach((button) => button.addEventListener('click', () => {
-  specialtyInput.value = button.dataset.suggestion;
-  suggestions.hidden = true;
-  specialtyInput.setAttribute('aria-expanded', 'false');
-}));
-document.addEventListener('click', (event) => {
-  if (!event.target.closest('.search-field-wide')) {
-    suggestions.hidden = true;
-    specialtyInput.setAttribute('aria-expanded', 'false');
-  }
-});
+specialtyInput.addEventListener('change', updateHeading);
 document.querySelectorAll('.medical-search-trigger').forEach((button) => button.addEventListener('click', () => {
   document.querySelector('#provider-directory-panel').hidden = false;
   document.querySelector('#provider-directory-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
