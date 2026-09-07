@@ -230,7 +230,27 @@
 </div>
 </div></dialog><dialog class="prototype-dialog small-dialog" id="booking-dialog"><button class="dialog-close" type="button" aria-label="Close booking form">×</button><p class="section-kicker">Request an appointment</p><h2>Tell us how to reach you.</h2><p class="dialog-help">The provider will confirm your appointment shortly.</p><label class="dialog-input">Full name<input placeholder="Your name"></label><label class="dialog-input">Email address<input type="email" placeholder="you@example.com"></label><button class="search-button dialog-book" id="submit-booking" type="button">Send request <span>→</span></button></dialog>
   <dialog class="prototype-dialog small-dialog" id="reset-dialog"><button class="dialog-close" type="button" aria-label="Close password reset">×</button><p class="section-kicker">Password help</p><h2>Reset your password.</h2><p class="dialog-help">Enter the email on your account and we will send a link to set a new password.</p><form id="reset-form" novalidate><label class="dialog-input">Email address<input type="email" id="reset-email" placeholder="you@example.com" autocomplete="email" required></label><p class="auth-error" id="reset-error" hidden>Enter a valid email address.</p><button class="search-button dialog-book" type="submit">Send reset link <span aria-hidden="true">&#8594;</span></button></form><p class="dialog-sent" id="reset-sent" hidden>✓ If that email is on file, a reset link is on its way.</p><button class="text-button reset-back" type="button" id="reset-back">Back to sign in ↑</button></dialog>
-  <div class="toast" id="toast" role="status" aria-live="polite">Your appointment request is ready to send.</div>
+  <div class="chat-widget" id="chat-widget">
+<section class="chat-panel" id="chat-panel" hidden aria-label="Injurvia support chat">
+<header class="chat-head">
+<span class="chat-avatar" aria-hidden="true">&#9679;</span>
+<div class="chat-head-id"><strong>Injurvia Assistant</strong><span class="chat-status"><i aria-hidden="true"></i>Usually replies in a few minutes</span></div>
+<button class="chat-close" id="chat-close" type="button" aria-label="Close chat">&times;</button>
+</header>
+<div class="chat-thread" id="chat-thread" aria-live="polite" aria-atomic="false"></div>
+<div class="chat-quick" id="chat-quick"></div>
+<form class="chat-composer" id="chat-composer">
+<input type="text" id="chat-input" placeholder="Type a message&hellip;" aria-label="Message" autocomplete="off">
+<button type="submit" aria-label="Send message"><span aria-hidden="true">&#8594;</span></button>
+</form>
+</section>
+<button class="chat-launcher" id="chat-launcher" type="button" aria-expanded="false" aria-controls="chat-panel" aria-label="Chat with Injurvia support">
+<svg class="chat-icon-open" width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 5.5C4 4.67 4.67 4 5.5 4h13c.83 0 1.5.67 1.5 1.5v10c0 .83-.67 1.5-1.5 1.5H9l-4 4v-4H5.5C4.67 17 4 16.33 4 15.5v-10Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="8.5" cy="10" r="1" fill="currentColor"/><circle cx="12" cy="10" r="1" fill="currentColor"/><circle cx="15.5" cy="10" r="1" fill="currentColor"/></svg>
+<svg class="chat-icon-close" width="20" height="20" viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M4 4l12 12M16 4L4 16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+<span class="chat-badge" id="chat-badge">1</span>
+</button>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite">Your appointment request is ready to send.</div>
   <script src="script.js"></script>
 </body>
 </html>

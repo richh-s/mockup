@@ -1400,3 +1400,187 @@ document.querySelector('#story-prev')?.addEventListener('click', () => openStory
 document.querySelector('#story-next')?.addEventListener('click', () => openStory((storyIndex + 1) % STORIES.length));
 storyDialog?.addEventListener('close', () => beatObserver?.disconnect());
 renderStories();
+
+/* ---- Support chat widget -----------------------------------------------
+   A small scripted assistant: canned answers keyed to the same topics the
+   FAQ covers, with quick-reply chips so a click always finds an answer.
+   "Talk to a person" and "Book now" hand off to the real booking dialog;
+   "Find a provider" hands off to the real search. Free-typed text is matched
+   against the same keyword groups before falling back to a generic reply. */
+(() => {
+  const widget = document.querySelector('#chat-widget');
+  const launcher = document.querySelector('#chat-launcher');
+  const panel = document.querySelector('#chat-panel');
+  const closeBtn = document.querySelector('#chat-close');
+  const thread = document.querySelector('#chat-thread');
+  const quick = document.querySelector('#chat-quick');
+  const composer = document.querySelector('#chat-composer');
+  const input = document.querySelector('#chat-input');
+  const badge = document.querySelector('#chat-badge');
+  if (!widget || !launcher || !panel) return;
+
+  let opened = false;
+  let busy = false;
+
+  const scrollToEnd = () => { thread.scrollTop = thread.scrollHeight; };
+
+  function addMessage(text, from) {
+    const bubble = document.createElement('div');
+    bubble.className = `chat-msg chat-msg-${from}`;
+    bubble.textContent = text;
+    thread.appendChild(bubble);
+    scrollToEnd();
+  }
+
+  function setQuickReplies(labels) {
+    quick.innerHTML = '';
+    labels.forEach((label) => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.textContent = label;
+      button.addEventListener('click', () => handleUserText(label));
+      quick.appendChild(button);
+    });
+  }
+
+  function showTyping() {
+    const typing = document.createElement('div');
+    typing.className = 'chat-typing';
+    typing.id = 'chat-typing-indicator';
+    typing.innerHTML = '<span></span><span></span><span></span>';
+    thread.appendChild(typing);
+    scrollToEnd();
+  }
+  function hideTyping() {
+    document.querySelector('#chat-typing-indicator')?.remove();
+  }
+
+  function goToSearch() {
+    closeChat();
+    if (window.location.hash !== '#home') { window.location.hash = '#home'; showRoute(); }
+    requestAnimationFrame(() => {
+      document.querySelector('.search-hero')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      specialtyInput?.focus();
+    });
+  }
+  function openBooking() {
+    closeChat();
+    bookingDialog?.showModal();
+  }
+  function goToFaqs() {
+    closeChat();
+    window.location.hash = '#faqs-page';
+  }
+
+  /* Keyword groups mirror the FAQ's own topic split, so the bot never claims
+     something the rest of the site doesn't already say. */
+  const RULES = [
+    {
+      match: ['find', 'provider', 'search', 'chiropractor', 'doctor', 'near me'],
+      reply: 'You can search by specialty and location right on the Find care page — every listed provider specializes in collision injury care. Want me to take you there?',
+      quick: ['Take me to search', 'Insurance & costs', 'Talk to a person'],
+      action: { 'Take me to search': goToSearch },
+    },
+    {
+      match: ['insurance', 'cost', 'pay', 'price', 'coverage', 'afford'],
+      reply: 'Many patients are covered through personal injury protection, medical payments coverage, or the at-fault driver’s insurance. Some providers can also treat on a lien basis if you’re waiting on a settlement.',
+      quick: ['Pre-settlement loans', 'Find a provider', 'Talk to a person'],
+    },
+    {
+      match: ['loan', 'lien', 'settlement', 'money', 'funding'],
+      reply: 'We can connect you with partner services that offer pre-settlement funding to help with expenses while a claim is pending. Injurvia doesn’t issue loans directly.',
+      quick: ['Talk to a person', 'Find a provider'],
+    },
+    {
+      match: ['appointment', 'book', 'schedule', 'visit'],
+      reply: 'Appointments are requested directly from a provider’s profile. Want to open the request form now?',
+      quick: ['Open appointment form', 'Find a provider', 'Talk to a person'],
+      action: { 'Open appointment form': openBooking },
+    },
+    {
+      match: ['lawyer', 'attorney', 'legal', 'claim'],
+      reply: 'You don’t need a lawyer to use Injurvia, though legal representation is often recommended. Our FAQ has more on documentation and claims if that helps.',
+      quick: ['Browse FAQs', 'Find a provider', 'Talk to a person'],
+      action: { 'Browse FAQs': goToFaqs },
+    },
+    {
+      match: ['language', 'spanish', 'korean', 'chinese', 'vietnamese', 'translate'],
+      reply: 'The site supports English, Spanish, Korean, Chinese, and Vietnamese — look for the language menu in the footer.',
+      quick: ['Find a provider', 'Talk to a person'],
+    },
+    {
+      match: ['person', 'human', 'agent', 'help', 'contact', 'call'],
+      reply: 'Of course — I’ll open our contact form so the team can follow up with you directly.',
+      quick: [],
+      immediate: openBooking,
+    },
+  ];
+
+  const FALLBACK = {
+    reply: 'I want to make sure I get you the right answer. Try one of these, or browse the full FAQ.',
+    quick: ['Find a provider', 'Insurance & costs', 'Book an appointment', 'Browse FAQs'],
+    action: { 'Browse FAQs': goToFaqs },
+  };
+
+  function matchRule(text) {
+    const needle = text.toLowerCase();
+    return RULES.find((rule) => rule.match.some((word) => needle.includes(word)));
+  }
+
+  function handleUserText(text) {
+    if (busy || !text.trim()) return;
+    busy = true;
+    addMessage(text, 'user');
+    setQuickReplies([]);
+    input.value = '';
+
+    const rule = matchRule(text);
+    const actionMap = rule?.action || FALLBACK.action || {};
+    if (rule?.immediate) { rule.immediate(); busy = false; return; }
+    /* A quick-reply label that has its own handler (e.g. "Take me to search")
+       navigates instead of getting a scripted reply. */
+    if (actionMap[text]) { actionMap[text](); busy = false; return; }
+
+    showTyping();
+    setTimeout(() => {
+      hideTyping();
+      const outcome = rule || FALLBACK;
+      addMessage(outcome.reply, 'bot');
+      setQuickReplies(outcome.quick);
+      busy = false;
+      input.focus();
+    }, 650 + Math.random() * 350);
+  }
+
+  function openChat() {
+    opened = true;
+    panel.hidden = false;
+    launcher.setAttribute('aria-expanded', 'true');
+    badge.hidden = true;
+    if (!thread.children.length) {
+      showTyping();
+      setTimeout(() => {
+        hideTyping();
+        addMessage('Hi, I’m the Injurvia assistant 👋 I can help you find a provider, understand insurance and costs, or connect you with our team.', 'bot');
+        setQuickReplies(['Find a provider', 'Insurance & costs', 'Book an appointment', 'Talk to a person']);
+      }, 500);
+    }
+    requestAnimationFrame(() => input?.focus());
+  }
+  function closeChat() {
+    opened = false;
+    panel.hidden = true;
+    launcher.setAttribute('aria-expanded', 'false');
+    launcher.focus();
+  }
+
+  launcher.addEventListener('click', () => (opened ? closeChat() : openChat()));
+  closeBtn.addEventListener('click', closeChat);
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && opened) closeChat();
+  });
+  composer.addEventListener('submit', (event) => {
+    event.preventDefault();
+    handleUserText(input.value);
+  });
+})();
