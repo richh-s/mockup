@@ -1329,3 +1329,161 @@ document.querySelector('#detail-book')?.addEventListener('click', () => bookingD
 /* Boot the router last: it can render a provider detail page, which needs
    PROVIDER_PROFILES to be initialised first. */
 showRoute();
+
+/* ---- Patient stories --------------------------------------------------------
+   Every account follows the same five beats: impact, symptoms, the search,
+   the turning point, where they landed. The reader renders those beats as a
+   vertical arc so the shape of a recovery is legible at a glance. */
+const STORIES = [
+  {
+    slug: 'thought-i-was-fine', category: 'Recovery', minutes: 4,
+    title: 'I thought I was fine — until I wasn’t.',
+    excerpt: 'No ER visit, no fuss. Then the headaches started and would not stop.',
+    name: 'Maya R.', where: 'Everett, WA · rear-ended on I-5',
+    beats: [
+      ['The collision', 'I got rear-ended on I-5 during stop-and-go traffic and honestly thought it wasn’t a big deal. I didn’t go to the ER and I told everyone I felt okay.'],
+      ['A couple of days later', 'My neck stiffened up and I started getting headaches that wouldn’t go away. Then my lower back started hurting in a way that felt deeper than just soreness.'],
+      ['Nowhere obvious to turn', 'I didn’t have a primary doctor, and urgent care made it sound like they don’t really deal with collision injuries beyond basic checks. That’s when I found Injurvia.'],
+      ['The turning point', 'They connected me with a provider who immediately understood what I was describing. They explained how symptoms can show up days later and why it matters to track everything properly. The care felt intentional, not rushed.'],
+      ['Looking back', 'I realise how easy it would have been to ignore it, or to go somewhere that didn’t take it seriously. Getting on the right path early made a real difference to my recovery and to how everything was documented.'],
+    ],
+    takeaway: 'Collision symptoms often surface days later. Being seen by someone who expects that — and documents it — changes both the treatment and the claim.',
+  },
+  {
+    slug: 'wrong-start', category: 'Documentation', minutes: 5,
+    title: 'The wrong start almost cost me everything.',
+    excerpt: 'The first clinic was kind. It was also, it turned out, keeping almost no record of me.',
+    name: 'Andre W.', where: 'Tacoma, WA · side-impact collision',
+    beats: [
+      ['The nearest clinic', 'After my collision I went to the closest clinic I could find. They were nice, but everything felt surface-level. No imaging, minimal notes, and I was told to rest and come back if it didn’t improve.'],
+      ['It didn’t improve', 'Weeks went by and I was still in pain. More than that, nothing was really being tracked. There was no record of what I was actually going through.'],
+      ['What the attorney said', 'When I eventually spoke with an attorney, they told me my records didn’t reflect my injury at all. Months of pain, and almost nothing on paper to show for it.'],
+      ['A different approach', 'That’s when I found Injurvia. They connected me with a provider who asked detailed questions about the collision, ordered the right tests, and documented everything clearly from the start.'],
+      ['Where I landed', 'My recovery improved, but just as importantly I felt like my situation was finally being taken seriously. I just wish I had started there.'],
+    ],
+    takeaway: 'Treatment and documentation are the same job. A clinic that treats you well but records nothing leaves you with no way to show what you went through.',
+  },
+  {
+    slug: 'knew-what-to-ask', category: 'Preparedness', minutes: 3,
+    title: 'I knew what to ask at my first appointment.',
+    excerpt: 'Ten minutes of reading beforehand changed how the whole appointment went.',
+    name: 'Priya S.', where: 'Bellevue, WA · low-speed rear impact',
+    beats: [
+      ['The collision', 'It was a low-speed hit in a car park. Barely a scratch on the bumper, which is exactly why I nearly talked myself out of being seen at all.'],
+      ['The doubt', 'My shoulder ached for a week. Everyone kept telling me it was nothing because the car was fine. I started to believe them.'],
+      ['Doing the reading', 'Before booking I went through the questions Injurvia suggests asking: how collision injuries are documented, whether imaging is available on site, how the clinic works with insurers.'],
+      ['The turning point', 'I asked all of them at my first appointment. The provider answered every one without hesitating, and I could tell straight away this was routine for them rather than an inconvenience.'],
+      ['Where I am now', 'I finished my course of treatment in eight weeks. Knowing what to ask meant I never had that feeling of being talked past.'],
+    ],
+    takeaway: 'Damage to the car is a poor proxy for damage to a person. Walking in with the right questions puts you on equal footing.',
+  },
+  {
+    slug: 'keep-moving', category: 'Community', minutes: 5,
+    title: 'The right care team helped me keep moving.',
+    excerpt: 'Three providers, one plan, and nobody making me repeat the story from scratch.',
+    name: 'Daniel K.', where: 'Seattle, WA · T-bone collision',
+    beats: [
+      ['The collision', 'I was T-boned turning onto Rainier Avenue. I walked away from it, which everyone treated as good news, and mostly it was.'],
+      ['The scattered months', 'The problem was that my chiropractor, my physio and my imaging centre had no idea the others existed. I was the only thing joining them up, and I was in no state to be a project manager.'],
+      ['Finding one network', 'Through Injurvia I found providers who already worked together. My chiropractor knew my physio. The imaging came back to both of them.'],
+      ['The turning point', 'I stopped repeating my story at every appointment. That sounds small. When you are tired and sore and frightened about money, it is not small at all.'],
+      ['Where I am now', 'I am back to cycling to work. My care took about five months and I never once had to chase a record between two clinics.'],
+    ],
+    takeaway: 'Recovery stalls in the gaps between providers. A connected care team removes the coordination work from the person least able to do it.',
+  },
+  {
+    slug: 'paperwork-mattered', category: 'Claims', minutes: 4,
+    title: 'Nobody told me the paperwork mattered this much.',
+    excerpt: 'I was focused on getting better. Nobody mentioned that how it was written down mattered too.',
+    name: 'Elena M.', where: 'Lynnwood, WA · multi-car collision',
+    beats: [
+      ['The collision', 'A four-car chain on the freeway in the rain. I was in the middle, which meant two impacts rather than one.'],
+      ['Getting on with it', 'I did what I thought you were supposed to do. Went to appointments, did the exercises, kept my head down and tried to get better.'],
+      ['The letter', 'Eight months later a letter arrived questioning whether my injuries came from the collision at all. I had been in pain the entire time and had no idea how thin the record looked.'],
+      ['The turning point', 'I moved to an Injurvia provider who walked me through what their notes actually said and why. It was the first time anyone had shown me my own file.'],
+      ['Where I am now', 'The claim was settled. What stays with me is how close I came to losing it while doing everything I was told.'],
+    ],
+    takeaway: 'Doing everything right clinically is not enough on its own. Ask to see how your care is being recorded, early.',
+  },
+];
+
+const storyDialog = document.querySelector('#story-dialog');
+let storyIndex = 0;
+
+const storyInitials = (name) => name.split(' ').map((part) => part[0]).join('').replace(/[^A-Z]/g, '').slice(0, 2);
+const arcDots = (active) => Array.from({ length: 5 },
+  (_, i) => `<span class="arc-dot${i === 4 ? ' arc-dot-end' : ''}${active ? ' arc-on' : ''}"></span>`).join('');
+
+function storyCard(story, index, featured) {
+  return `<article class="story-card${featured ? ' story-card-featured' : ''}">
+    <div class="story-card-top">
+      <span class="story-chip">${story.category}</span>
+      <span class="story-read-time">${story.minutes} min read</span>
+    </div>
+    <h3>&ldquo;${story.title}&rdquo;</h3>
+    <p class="story-card-excerpt">${story.excerpt}</p>
+    <div class="story-arc" aria-hidden="true">${arcDots(featured)}<b>${story.beats.length} beats</b></div>
+    <div class="story-card-foot">
+      <span class="story-avatar">${storyInitials(story.name)}</span>
+      <div><strong>${story.name}</strong><span>${story.where}</span></div>
+      <button class="story-read" type="button" data-story="${index}">Read story <b>&rarr;</b></button>
+    </div>
+  </article>`;
+}
+
+function renderStories() {
+  const featured = document.querySelector('#story-featured');
+  const grid = document.querySelector('#story-grid');
+  if (!featured || !grid) return;
+  featured.innerHTML = storyCard(STORIES[0], 0, true);
+  grid.innerHTML = STORIES.slice(1).map((story, i) => storyCard(story, i + 1, false)).join('');
+  const count = document.querySelector('#story-count');
+  if (count) count.textContent = String(STORIES.length).padStart(2, '0');
+  document.querySelectorAll('.story-read').forEach((button) => button.addEventListener('click', () => {
+    openStory(Number(button.dataset.story));
+  }));
+}
+
+let beatObserver = null;
+
+function openStory(index) {
+  const story = STORIES[index];
+  if (!story) return;
+  storyIndex = index;
+  const set = (id, value) => { const el = document.querySelector(id); if (el) el.textContent = value; };
+  set('#story-chip', story.category);
+  set('#story-time', `${story.minutes} min read`);
+  set('#story-title', `“${story.title}”`);
+  set('#story-avatar', storyInitials(story.name));
+  set('#story-name', story.name);
+  set('#story-where', story.where);
+  set('#story-takeaway', story.takeaway);
+
+  document.querySelector('#story-beats').innerHTML = story.beats.map(([label, text], i) => `
+    <li class="story-beat${i === story.beats.length - 1 ? ' story-beat-end' : ''}">
+      <span class="beat-marker" aria-hidden="true"></span>
+      <h3>${label}</h3>
+      <p>${text}</p>
+    </li>`).join('');
+
+  /* Light up each beat as it comes into view, so the arc reads as progress. */
+  beatObserver?.disconnect();
+  const beats = [...document.querySelectorAll('.story-beat')];
+  beatObserver = new IntersectionObserver((entries) => {
+    entries.forEach((entry) => entry.target.classList.toggle('beat-active', entry.isIntersecting));
+  }, { root: document.querySelector('.story-scroll'), rootMargin: '-20% 0px -55% 0px' });
+  beats.forEach((beat) => beatObserver.observe(beat));
+
+  const prev = STORIES[(index - 1 + STORIES.length) % STORIES.length];
+  const next = STORIES[(index + 1) % STORIES.length];
+  document.querySelector('#story-prev span').textContent = prev.name;
+  document.querySelector('#story-next span').textContent = next.name;
+
+  if (!storyDialog.open) storyDialog.showModal();
+  document.querySelector('.story-scroll').scrollTop = 0;
+}
+
+document.querySelector('#story-prev')?.addEventListener('click', () => openStory((storyIndex - 1 + STORIES.length) % STORIES.length));
+document.querySelector('#story-next')?.addEventListener('click', () => openStory((storyIndex + 1) % STORIES.length));
+storyDialog?.addEventListener('close', () => beatObserver?.disconnect());
+renderStories();

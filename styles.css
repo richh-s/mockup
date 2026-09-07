@@ -487,3 +487,103 @@ a:not([href]){cursor:pointer}
    zoom buttons over the dialog close button and swallowed the click. */
 #provider-dialog .dialog-close,
 #provider-detail-dialog .dialog-close{z-index:1200}
+
+/* ---- Patient stories --------------------------------------------------- */
+#patient-stories.page-view{max-width:1240px;margin:0 auto;padding:0 32px 90px;background:transparent}
+#patient-stories .stories-intro{display:flex;align-items:flex-end;justify-content:space-between;gap:40px;max-width:none;padding:56px 0 34px}
+#patient-stories .stories-stat{display:flex;align-items:flex-start;gap:13px;max-width:250px;padding:0;border:0}
+#patient-stories .stories-stat strong{color:var(--teal);font:800 30px Manrope,sans-serif;line-height:1}
+#patient-stories .stories-stat span{color:var(--muted);font-size:13px;line-height:1.5}
+
+.story-card{display:flex;flex-direction:column;gap:12px;padding:24px 26px;border:1px solid var(--line);border-radius:13px;background:var(--white);box-shadow:0 8px 22px rgba(24,42,45,.05);transition:transform .22s,box-shadow .22s}
+.story-card:hover{transform:translateY(-4px);box-shadow:0 18px 38px rgba(24,42,45,.11)}
+.story-card-top{display:flex;align-items:center;gap:10px}
+.story-chip{padding:4px 10px;border-radius:20px;background:var(--mint);color:var(--teal);font:700 10.5px "DM Sans",sans-serif;letter-spacing:.6px;text-transform:uppercase}
+.story-read-time{color:var(--muted);font-size:11.5px}
+.story-card h3{margin:0;font:700 21px/1.3 Manrope,sans-serif;letter-spacing:-.7px}
+.story-card-excerpt{margin:0;color:var(--muted);font-size:14px;line-height:1.6}
+
+/* The five-dot arc previews the shape every story follows. */
+.story-arc{display:flex;align-items:center;gap:7px;margin-top:2px}
+.arc-dot{width:7px;height:7px;border-radius:50%;background:#d6e3df}
+.story-card:hover .arc-dot,.arc-on{background:#a9cfc4}
+.arc-dot-end{width:9px;height:9px;background:var(--teal)!important}
+.story-arc b{margin-left:5px;color:var(--muted);font:600 10.5px "DM Sans",sans-serif}
+.story-card-foot{display:flex;align-items:center;gap:11px;margin-top:auto;padding-top:15px;border-top:1px solid var(--line)}
+.story-avatar{display:flex;align-items:center;justify-content:center;flex:0 0 38px;width:38px;height:38px;border-radius:50%;background:var(--mint);color:var(--teal);font:800 12px Manrope,sans-serif}
+.story-card-foot strong{display:block;font:700 13px Manrope,sans-serif}
+.story-card-foot span{display:block;color:var(--muted);font-size:11.5px}
+.story-read{margin-left:auto;flex:0 0 auto;border:0;padding:0;background:none;color:var(--teal);font:700 13px "DM Sans",sans-serif;white-space:nowrap}
+.story-read:hover{text-decoration:underline;text-underline-offset:3px}
+.story-read b{margin-left:5px}
+
+.story-card-featured{gap:15px;padding:34px 36px;border-left:5px solid var(--teal);background:linear-gradient(140deg,#ffffff 60%,#eef5f2)}
+.story-card-featured h3{font-size:31px;max-width:760px}
+.story-card-featured .story-card-excerpt{max-width:640px;font-size:15.5px}
+
+.story-grid-head{margin:44px 0 18px}
+.story-grid-head h2{margin:0 0 5px;font:700 24px Manrope,sans-serif;letter-spacing:-.9px}
+.story-grid-head p{margin:0;max-width:560px;color:var(--muted);font-size:13.5px}
+.story-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+
+/* ---- Story reader ---- */
+.story-dialog{width:min(760px,calc(100% - 40px));max-height:90vh;padding:0;border:0;border-radius:15px;background:var(--paper);color:var(--ink);box-shadow:0 30px 80px rgba(24,42,45,.34);overflow:hidden}
+.story-dialog::backdrop{background:rgba(24,42,45,.55)}
+.story-dialog .dialog-close{z-index:5;position:absolute;top:15px;right:16px;display:flex;align-items:center;justify-content:center;width:38px;height:38px;border:1px solid rgba(24,42,45,.12);border-radius:50%;background:var(--white);color:var(--ink);font-size:25px;line-height:1;box-shadow:0 4px 12px rgba(24,42,45,.12)}
+.story-scroll{max-height:90vh;overflow-y:auto;padding:34px 38px 30px;scroll-behavior:smooth}
+.story-head{padding-bottom:22px;border-bottom:1px solid var(--line)}
+.story-chips{display:flex;align-items:center;gap:10px;margin-bottom:13px}
+.story-head h2{margin:0 0 18px;max-width:88%;font:800 30px/1.24 Manrope,sans-serif;letter-spacing:-1.2px}
+.story-author{display:flex;align-items:center;gap:12px}
+.story-author strong{display:block;font:700 14px Manrope,sans-serif}
+.story-author span{display:block;color:var(--muted);font-size:12.5px}
+
+/* The arc, drawn as a rail the beats hang from. */
+.story-beats{position:relative;margin:0;padding:26px 0 6px 34px;list-style:none}
+.story-beats::before{content:"";position:absolute;top:34px;bottom:26px;left:6px;width:2px;border-radius:2px;background:linear-gradient(#d6e3df,#a9cfc4)}
+.story-beat{position:relative;padding-bottom:24px}
+.beat-marker{position:absolute;top:5px;left:-34px;width:14px;height:14px;border:2px solid #cddcd7;border-radius:50%;background:var(--paper);transition:background .3s,border-color .3s,transform .3s}
+.story-beat.beat-active .beat-marker{border-color:var(--teal);background:var(--teal);transform:scale(1.15)}
+.story-beat h3{margin:0 0 6px;color:var(--muted);font:700 11px "DM Sans",sans-serif;letter-spacing:1.1px;text-transform:uppercase;transition:color .3s}
+.story-beat.beat-active h3{color:var(--teal)}
+.story-beat p{margin:0;color:#41595a;font-size:15.5px;line-height:1.68}
+.story-beat-end p{padding:16px 18px;border-radius:10px;background:var(--mint);color:var(--ink);font-weight:500}
+.story-beat-end .beat-marker{border-color:var(--teal)}
+
+.story-takeaway{margin-top:8px;padding:20px 22px;border-left:4px solid #8bd04b;border-radius:0 11px 11px 0;background:#26333c;color:#fff}
+.story-takeaway h3{margin:0 0 7px;font:700 12px "DM Sans",sans-serif;letter-spacing:1.1px;text-transform:uppercase;color:#8bd04b}
+.story-takeaway p{margin:0;font-size:14.5px;line-height:1.62}
+.story-nav{display:flex;justify-content:space-between;gap:12px;margin-top:26px;padding-top:20px;border-top:1px solid var(--line)}
+.story-nav-btn{max-width:48%;border:1px solid var(--line);border-radius:9px;padding:11px 15px;background:var(--white);color:var(--muted);font:600 12.5px "DM Sans",sans-serif;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.story-nav-btn span{color:var(--ink);font-weight:700}
+.story-nav-btn:hover{border-color:var(--teal);color:var(--teal)}
+.story-nav-next{text-align:right}
+
+@media(max-width:900px){.story-grid{grid-template-columns:1fr}}
+@media(max-width:800px){
+  #patient-stories.page-view{padding:0 20px 64px}
+  #patient-stories .stories-intro{display:block;padding:40px 0 26px}
+  #patient-stories .stories-stat{margin-top:22px;max-width:none}
+  .story-card{padding:20px}
+  .story-card-featured{padding:24px 22px}
+  .story-card-featured h3{font-size:23px}
+  .story-card h3{font-size:19px}
+  .story-card-foot{flex-wrap:wrap}
+  .story-read{margin-left:0;width:100%;padding-top:8px}
+  .story-dialog{width:calc(100% - 20px);max-height:94vh}
+  .story-scroll{max-height:94vh;padding:24px 20px}
+  .story-head h2{max-width:100%;font-size:23px}
+  .story-beats{padding-left:28px}
+  .story-beat p{font-size:14.5px}
+  .story-nav{display:block}
+  .story-nav-btn{max-width:none;width:100%}
+  .story-nav-next{margin-top:9px;text-align:left}
+}
+/* Neutralise the legacy .story-grid article styling (dark second card, giant
+   quote glyph, decorative ring, 360px min-height) now that the grid holds
+   .story-card articles instead. Two-class selectors beat the inline rules. */
+#patient-stories .story-grid .story-card{position:relative;min-height:0;padding:24px 26px;background:var(--white);animation:none}
+#patient-stories .story-grid .story-card::before,#patient-stories .story-grid .story-card::after{content:none}
+.story-grid .story-card h3{max-width:none;margin:0;font:700 21px/1.3 Manrope,sans-serif}
+.story-grid .story-card p{max-width:none;line-height:1.6}
+.story-grid .story-card:hover{transform:translateY(-4px);box-shadow:0 18px 38px rgba(24,42,45,.11)}
