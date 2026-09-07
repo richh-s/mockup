@@ -245,13 +245,19 @@ a:not([href]){cursor:pointer}
 .ccc-star-a{top:31px;left:57px}.ccc-star-b{top:31px;right:57px}
 .ccc-star-c{bottom:31px;left:57px}.ccc-star-d{bottom:31px;right:57px}
 
-/* ---- For providers page ---- */
-.benefits-band{margin-top:8px;padding:52px max(32px,calc((100vw - 1240px)/2));background:#6b7681;color:#fff;margin-left:calc(50% - 50vw);margin-right:calc(50% - 50vw)}
-.benefits-title{margin:0 0 26px;font:800 33px Manrope,sans-serif;letter-spacing:-1.2px;text-align:center}
+/* ---- For providers page ----------------------------------------------------
+   Same light-mint wash as the home page's own "Why Collision Injury Care"
+   band, so the two features sections read as one family instead of the
+   provider page reaching for its own off-brand grey. Cards pick up the
+   teal/mint badge pairing used for icons everywhere else on the site. */
+.benefits-band{margin-top:8px;padding:64px max(32px,calc((100vw - 1240px)/2));background:var(--mint);margin-left:calc(50% - 50vw);margin-right:calc(50% - 50vw)}
+.benefits-heading-row{max-width:1240px;margin:0 auto 30px}
+.benefits-title{margin:6px 0 0;max-width:640px;font:800 32px/1.2 Manrope,sans-serif;letter-spacing:-1.2px;color:var(--ink)}
 .benefit-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;max-width:1240px;margin:0 auto}
-.benefit-card{padding:26px;border-left:5px solid #8bd04b;border-radius:4px;background:var(--white);color:var(--ink)}
-.benefit-glyph{display:block;margin-bottom:11px;color:#6aa832;font-size:26px}
-.benefit-card h3{margin:0 0 11px;font:700 17px Manrope,sans-serif;color:#5c6873}
+.benefit-card{padding:26px;border-left:4px solid var(--teal);border-radius:6px;background:var(--white);color:var(--ink);box-shadow:0 8px 22px rgba(24,42,45,.05);transition:transform .2s,box-shadow .2s}
+.benefit-card:hover{transform:translateY(-3px);box-shadow:0 14px 30px rgba(24,42,45,.09)}
+.benefit-glyph{display:flex;align-items:center;justify-content:center;width:40px;height:40px;margin-bottom:14px;border-radius:10px;background:var(--mint);color:var(--teal);font-size:18px}
+.benefit-card h3{margin:0 0 9px;font:700 17px Manrope,sans-serif;color:var(--ink)}
 .benefit-card p{margin:0;color:var(--muted);font-size:13px;line-height:1.6}
 .values-band{display:grid;grid-template-columns:1fr 1fr;align-items:center;gap:0;margin:0 calc(50% - 50vw);background:#26333c;color:#fff}
 .values-list{margin:0;padding:44px max(28px,calc((100vw - 1240px)/2)) 44px;list-style:none;background:#6aa832}
@@ -287,7 +293,8 @@ a:not([href]){cursor:pointer}
   .marquee-track{animation-duration:40s}
   .ccc-section{padding:46px 20px}
   .benefits-band{padding:40px 20px}
-  .benefits-title{font-size:26px}
+  .benefits-heading-row{margin-bottom:22px}
+  .benefits-title{font-size:24px}
   .benefit-grid{grid-template-columns:1fr}
   .values-band{grid-template-columns:1fr}
   .values-list,.values-copy{padding:34px 20px}

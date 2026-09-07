@@ -192,14 +192,10 @@ document.querySelector('#book-button').addEventListener('click', () => { provide
 document.querySelector('#submit-booking').addEventListener('click', () => { bookingDialog.close(); toast.classList.add('show'); setTimeout(() => toast.classList.remove('show'), 3200); });
 document.querySelector('#appointment-button').addEventListener('click', () => bookingDialog.showModal());
 document.addEventListener('click', (event) => {
-  const link = event.target.closest('a[href="#contact-us"], a[href="#providers"]');
+  const link = event.target.closest('a[href="#contact-us"]');
   if (!link) return;
   event.preventDefault();
-  if (link.getAttribute('href') === '#contact-us') {
-    bookingDialog.showModal();
-    return;
-  }
-  window.location.hash = 'medical-providers';
+  bookingDialog.showModal();
 });
 /* .account-button is wired in the auth block at the end of this file. */
 document.querySelectorAll('.account-action').forEach((button) => button.addEventListener('click', () => { toast.textContent = `${button.textContent.replace(' →', '')} is ready for the full account flow.`; toast.classList.add('show'); setTimeout(() => toast.classList.remove('show'), 3200); }));
@@ -210,54 +206,7 @@ document.querySelectorAll('.language-button').forEach((button) => button.addEven
   toast.classList.add('show');
   setTimeout(() => toast.classList.remove('show'), 2200);
 }));
-const specialtyCopy = {
-  'Chiropractic care': 'Support for mobility, spine health, sports injuries, and collision recovery.',
-  'Physical therapy': 'Movement-focused care to rebuild strength, confidence, and everyday function.',
-  'Imaging centers': 'Diagnostic support that helps qualified professionals understand your injury.',
-  'Pain management': 'Personalized plans designed to help you understand and manage persistent pain.',
-  Orthopedics: 'Bone, joint, and muscle specialists for evaluation, treatment, and recovery.',
-  'More specialties': 'Browse the wider provider network and find the kind of care that fits your needs.'
-};
-document.querySelectorAll('.specialty-link').forEach((link) => link.addEventListener('click', (event) => {
-  event.preventDefault();
-  const specialty = link.dataset.specialty;
-  document.querySelector('#specialty-name').textContent = specialty;
-  document.querySelector('#specialty-copy').textContent = specialtyCopy[specialty];
-  document.querySelector('#specialty-detail').hidden = false;
-  document.querySelectorAll('.specialty-link').forEach((item) => item.classList.toggle('selected', item === link));
-}));
-const medicalSearch = document.querySelector('#medical-search');
-function openMedicalSearchFor(term) {
-  document.querySelector('#medical-specialty').value = term;
-  if (window.location.hash !== '#medical-providers') {
-    window.location.hash = 'medical-providers';
-    setTimeout(() => revealMedicalSearch(), 80);
-  } else {
-    revealMedicalSearch();
-  }
-}
-function revealMedicalSearch() {
-  medicalSearch.hidden = false;
-  medicalSearch.classList.remove('is-entering');
-  void medicalSearch.offsetWidth;
-  medicalSearch.classList.add('is-entering');
-  medicalSearch.scrollIntoView({ behavior: 'smooth', block: 'center' });
-}
 specialtyInput.addEventListener('change', () => applyFilters());
-document.querySelectorAll('.medical-search-trigger').forEach((button) => button.addEventListener('click', () => {
-  document.querySelector('#provider-directory-panel').hidden = false;
-  document.querySelector('#provider-directory-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
-}));
-document.querySelector('.medical-search-close').addEventListener('click', () => {
-  medicalSearch.hidden = true;
-  document.querySelector('#medical-providers').scrollIntoView({ behavior: 'smooth', block: 'start' });
-});
-document.querySelector('#medical-search-form').addEventListener('submit', (event) => {
-  event.preventDefault();
-  toast.textContent = `Showing providers for ${document.querySelector('#medical-specialty').value.trim() || 'all specialties'}.`;
-  toast.classList.add('show');
-  setTimeout(() => toast.classList.remove('show'), 2400);
-});
 /* Topic chips used to only relabel a heading. They now filter, and they stay
    in sync with the search box rather than fighting it. */
 const faqSearchInput = document.querySelector('#faq-search');
@@ -291,12 +240,10 @@ document.querySelector('#faq-support-button').addEventListener('click', () => bo
 
 const pageViews = [...document.querySelectorAll('.page-view')];
 const homeMain = document.querySelector('main');
-const providerDirectory = document.querySelector('#provider-directory-panel');
 function showRoute() {
   const route = window.location.hash.slice(1) || 'home';
   const page = pageViews.find((view) => view.dataset.page === route);
   pageViews.forEach((view) => view.classList.toggle('active', view === page));
-  providerDirectory.hidden = route !== 'medical-providers';
   homeMain.style.display = page ? 'none' : '';
   document.querySelectorAll('.main-nav a').forEach((link) => link.classList.toggle('active', link.getAttribute('href') === `#${route}`));
   if (page) requestAnimationFrame(() => window.scrollTo({ top: 0, behavior: 'auto' }));
@@ -309,58 +256,6 @@ window.addEventListener('load', () => {
   if (document.querySelector('.page-view.active')) window.scrollTo(0, 0);
 });
 
-document.querySelector('#directory-specialty').addEventListener('change', (event) => {
-  toast.textContent = `Showing ${event.target.value} providers.`;
-  toast.classList.add('show');
-  setTimeout(() => toast.classList.remove('show'), 2200);
-});
-document.querySelectorAll('.directory-profile').forEach((button) => button.addEventListener('click', () => {
-  document.querySelector('#dialog-provider-name').textContent = button.closest('article').querySelector('h3').textContent;
-  providerDialog.showModal();
-}));
-document.querySelectorAll('.directory-filter').forEach((button) => button.addEventListener('click', () => {
-  document.querySelectorAll('.directory-filter').forEach((item) => item.classList.remove('active'));
-  button.classList.add('active');
-  const filter = button.dataset.filter;
-  const cards = [...document.querySelectorAll('.directory-results .provider-card')];
-  let visible = 0;
-  cards.forEach((card) => {
-    const matches = filter === 'all' || card.dataset.directoryTags.includes(filter);
-    card.hidden = !matches;
-    if (matches) visible += 1;
-  });
-  document.querySelector('.directory-empty').hidden = visible !== 0;
-}));
-const specialtyKeywords = {
-  chiropractor: 'chiropract',
-  'physical therapy': 'rehab',
-  'imaging centers': 'imaging',
-  'pain management': 'pain',
-  orthopedics: 'orthoped',
-};
-document.querySelector('#directory-specialty').addEventListener('change', (event) => {
-  const isAll = event.target.value === 'All providers';
-  const keyword = specialtyKeywords[event.target.value.toLowerCase()] || event.target.value.toLowerCase();
-  document.querySelectorAll('.directory-results .provider-card').forEach((card) => { card.hidden = !isAll && !card.textContent.toLowerCase().includes(keyword); });
-});
-
-document.querySelector('#provider-search-form').addEventListener('submit', (event) => {
-  event.preventDefault();
-  const specialty = document.querySelector('#provider-search-specialty').value.trim();
-  const location = document.querySelector('#provider-search-location').value.trim();
-  const directorySelect = document.querySelector('#directory-specialty');
-  const match = [...directorySelect.options].find((option) => option.textContent.toLowerCase().includes(specialty.toLowerCase()));
-  directorySelect.value = specialty && match ? match.value : 'All providers';
-  document.querySelectorAll('.directory-filter').forEach((item) => item.classList.toggle('active', item.dataset.filter === 'all'));
-  document.querySelector('#provider-directory-panel').hidden = false;
-  directorySelect.dispatchEvent(new Event('change'));
-  const visible = document.querySelectorAll('.directory-results .provider-card:not([hidden])').length;
-  document.querySelector('.directory-empty').hidden = visible !== 0;
-  toast.textContent = `Showing ${directorySelect.value.toLowerCase()} providers near ${location || 'your area'}.`;
-  toast.classList.add('show');
-  setTimeout(() => toast.classList.remove('show'), 2400);
-  document.querySelector('#provider-directory-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
-});
 /* Replace native select popups with a styled, scrollable listbox. The original
    select stays in the DOM and in sync, so existing value/change code keeps working. */
 (() => {
@@ -1020,11 +915,6 @@ applyFilters();
 
 /* Prototype affordances that had no destination. They were href="#", which
    cleared the hash route and bounced the user to the home page. */
-document.querySelector('.provider-link')?.addEventListener('click', () => {
-  toast.textContent = 'Provider enrolment opens in the full build.';
-  toast.classList.add('show');
-  setTimeout(() => toast.classList.remove('show'), 2400);
-});
 document.querySelector('.insurance-link')?.addEventListener('click', () => {
   toast.textContent = 'Insurance coverage check opens in the full build.';
   toast.classList.add('show');
@@ -1041,8 +931,10 @@ function searchSpecialty(slug) {
   specialtyInput.value = option ? option.value : '';
   applyFilters();
 
-  if (window.location.hash !== '#home') window.location.hash = '#home';
-  else showRoute();
+  if (window.location.hash !== '#home') {
+    window.location.hash = '#home';
+    showRoute();
+  }
   requestAnimationFrame(() => {
     document.querySelector('#providers')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   });
@@ -1052,14 +944,28 @@ document.querySelectorAll('.cat-tile').forEach((tile) => tile.addEventListener('
   searchSpecialty(tile.dataset.specialty);
 }));
 
-/* The homepage "smart search categories" tiles carry the same labels. */
-document.querySelectorAll('.specialty-grid a[href="#medical-providers"]').forEach((tile) => {
+/* The homepage "Smart search categories" tiles carry real specialty names. */
+document.querySelectorAll('.category-links a').forEach((tile) => {
   const label = tile.querySelector('strong')?.textContent.trim();
   if (!label) return;
   const known = [...specialtyInput.options].some((item) => item.textContent.trim().toLowerCase() === label.toLowerCase());
   if (!known) return;
   tile.addEventListener('click', (event) => { event.preventDefault(); searchSpecialty(label); });
 });
+
+/* Generic "browse all providers" links: land on the real search results.
+   Setting the hash to the page you're already on doesn't fire hashchange, so
+   these scroll directly when there's nothing to navigate. */
+document.querySelectorAll('[data-goto="results"]').forEach((link) => link.addEventListener('click', (event) => {
+  event.preventDefault();
+  if (window.location.hash !== '#home') {
+    window.location.hash = '#home';
+    showRoute();
+  }
+  requestAnimationFrame(() => {
+    document.querySelector('#providers')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+}));
 
 
 /* ---- Prototype affordances on the new provider-facing page ---- */
