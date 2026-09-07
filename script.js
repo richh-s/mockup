@@ -120,11 +120,16 @@ function applyFilters({ resetPage = true } = {}) {
 
 form.addEventListener('submit', (event) => {
   event.preventDefault();
-  const term = specialtyInput.value.trim();
   applyFilters();
   form.classList.add('is-searching');
   setTimeout(() => form.classList.remove('is-searching'), 600);
-  openMedicalSearchFor(term);
+  /* Searching used to jump to the Medical providers page, which threw away the
+     results it had just filtered and showed a different, unfiltered list. Stay
+     put and take the user down to their results. */
+  if (window.location.hash && window.location.hash !== '#home') window.location.hash = '#home';
+  requestAnimationFrame(() => {
+    document.querySelector('#providers')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
 });
 
 document.querySelectorAll('.filter-check').forEach((input) => input.addEventListener('change', () => applyFilters()));
@@ -157,7 +162,9 @@ document.querySelectorAll('.save-button').forEach((button) => button.addEventLis
   button.setAttribute('aria-pressed', button.classList.contains('saved'));
 }));
 document.querySelectorAll('.popular-searches button').forEach((button) => button.addEventListener('click', () => {
-  specialtyInput.value = button.textContent;
+  const label = button.textContent.trim().toLowerCase();
+  const option = [...specialtyInput.options].find((item) => item.textContent.trim().toLowerCase() === label);
+  specialtyInput.value = option ? option.value : '';
   specialtyInput.dispatchEvent(new Event('change'));
   form.dispatchEvent(new Event('submit'));
 }));
