@@ -2,12 +2,19 @@ const form = document.querySelector('#search-form');
 const specialtyInput = document.querySelector('#specialty-input');
 const resultsTitle = document.querySelector('#results-title');
 const resultCount = document.querySelector('#result-count');
+const resultNoun = document.querySelector('#result-noun');
+const mapCount = document.querySelector('#map-count');
+const sortSelect = document.querySelector('#sort-providers');
+const providerList = document.querySelector('#provider-list');
+const loadMore = document.querySelector('.load-more');
+const collapseResults = document.querySelector('#collapse-results');
+const emptyMessage = document.querySelector('#empty-message');
 const filterToggle = document.querySelector('#filter-toggle');
 const filters = document.querySelector('#filters');
 const clearFilters = document.querySelector('#clear-filters');
 const resetResults = document.querySelector('#reset-results');
 const emptyState = document.querySelector('#empty-state');
-const cards = [...document.querySelectorAll('.provider-card')];
+const cards = [...document.querySelectorAll('#provider-list .provider-card')];
 const mapPanel = document.querySelector('#map-panel');
 const listView = document.querySelector('#list-view');
 const mapView = document.querySelector('#map-view');
@@ -15,42 +22,138 @@ const providerDialog = document.querySelector('#provider-dialog');
 const bookingDialog = document.querySelector('#booking-dialog');
 const toast = document.querySelector('#toast');
 
-function updateHeading() {
-  const term = specialtyInput.value.trim() || 'providers';
-  resultsTitle.innerHTML = `<span id="result-count">${cards.length}</span> ${term.toLowerCase()}${term.toLowerCase().endsWith('s') ? '' : 's'} near you`;
+const PAGE_SIZE = 3;
+let shown = PAGE_SIZE;
+
+/* Specialty labels mix agent nouns ("Chiropractor"), already-plural phrases
+   ("Imaging centers") and mass nouns ("Physical therapy"). Bolting on an "s"
+   produced "physical therapys", so build the head noun first and inflect that. */
+function specialtyNoun(term, count) {
+  const word = term.trim().toLowerCase();
+  let phrase;
+  if (!word) phrase = 'provider';
+  else if (/(or|er|ist|ian)$/.test(word)) phrase = word;
+  else if (word.endsWith('s')) phrase = word.replace(/s$/, '');
+  else phrase = `${word} provider`;
+  return count === 1 ? phrase : `${phrase}s`;
 }
 
-function applyFilters() {
-  const selected = [...document.querySelectorAll('.filter-check:checked')].map((input) => input.value);
-  let visible = 0;
-  cards.forEach((card) => {
-    const matches = selected.length === 0 || selected.every((tag) => card.dataset.tags.includes(tag));
-    card.hidden = !matches;
-    if (matches) visible += 1;
+function updateHeading(count) {
+  /* Only the noun is rewritten. The previous version replaced the whole
+     heading's innerHTML, which detached #result-count and froze the number. */
+  resultNoun.textContent = specialtyNoun(specialtyInput.value, count);
+}
+
+const distanceLimit = () => {
+  const picked = document.querySelector('input[name="distance"]:checked');
+  return !picked || picked.value === 'any' ? Infinity : Number(picked.value);
+};
+const ratingFloor = () => {
+  const picked = document.querySelector('input[name="rating"]:checked');
+  return picked ? Number(picked.value) : 0;
+};
+
+function sortMatches(matches) {
+  const mode = sortSelect ? sortSelect.value : 'recommended';
+  const ordered = [...matches];
+  if (mode === 'rating') ordered.sort((a, b) => Number(b.dataset.rating) - Number(a.dataset.rating));
+  else if (mode === 'distance') ordered.sort((a, b) => Number(a.dataset.distance) - Number(b.dataset.distance));
+  else ordered.sort((a, b) => cards.indexOf(a) - cards.indexOf(b));
+  ordered.forEach((card) => providerList.insertBefore(card, emptyState));
+  return ordered;
+}
+
+/* Availability counts used to be hardcoded ("8", "12") and drifted from the
+   list. Derive them from the cards that pass every *other* active filter. */
+function refreshTagCounts() {
+  const maxDistance = distanceLimit();
+  const minRating = ratingFloor();
+  const specialty = specialtyInput.value.trim().toLowerCase();
+  document.querySelectorAll('[data-count-for]').forEach((badge) => {
+    const tag = badge.dataset.countFor;
+    badge.textContent = cards.filter((card) => card.dataset.tags.split(' ').includes(tag)
+      && Number(card.dataset.distance) <= maxDistance
+      && Number(card.dataset.rating) >= minRating
+      && (!specialty || card.dataset.specialty === specialty)).length;
   });
-  resultCount.textContent = visible;
-  emptyState.hidden = visible !== 0;
+}
+
+function applyFilters({ resetPage = true } = {}) {
+  if (resetPage) shown = PAGE_SIZE;
+  const tags = [...document.querySelectorAll('.filter-check:checked')].map((input) => input.value);
+  const maxDistance = distanceLimit();
+  const minRating = ratingFloor();
+  const specialty = specialtyInput.value.trim().toLowerCase();
+
+  const matches = cards.filter((card) => tags.every((tag) => card.dataset.tags.split(' ').includes(tag))
+    && Number(card.dataset.distance) <= maxDistance
+    && Number(card.dataset.rating) >= minRating
+    && (!specialty || card.dataset.specialty === specialty));
+
+  const ordered = sortMatches(matches);
+  cards.forEach((card) => { card.hidden = true; });
+  ordered.slice(0, shown).forEach((card) => { card.hidden = false; });
+
+  resultCount.textContent = matches.length;
+  updateHeading(matches.length);
+  /* "No providers match these filters" is wrong when the category simply has
+     no clinics listed yet — say which case the user is actually in. */
+  if (matches.length === 0 && emptyMessage) {
+    const noneInSpecialty = specialty && !cards.some((card) => card.dataset.specialty === specialty);
+    emptyMessage.textContent = noneInSpecialty
+      ? `No ${specialty} providers are listed in this area yet. Try another category, or `
+      : 'No providers match these filters. ';
+  }
+  if (mapCount) mapCount.textContent = matches.length;
+  emptyState.hidden = matches.length !== 0;
+  loadMore.hidden = matches.length <= shown;
+  if (collapseResults) collapseResults.hidden = shown <= PAGE_SIZE || matches.length <= PAGE_SIZE;
+  loadMore.textContent = '';
+  const remaining = Math.min(PAGE_SIZE, matches.length - shown);
+  loadMore.append(`Show ${remaining} more ${remaining === 1 ? 'provider' : 'providers'} `);
+  const arrow = document.createElement('span');
+  arrow.textContent = '\u2193';
+  loadMore.append(arrow);
+  refreshTagCounts();
+  document.dispatchEvent(new CustomEvent('results:change', { detail: { matches: ordered } }));
 }
 
 form.addEventListener('submit', (event) => {
   event.preventDefault();
   const term = specialtyInput.value.trim();
-  updateHeading();
+  applyFilters();
   form.classList.add('is-searching');
   setTimeout(() => form.classList.remove('is-searching'), 600);
   openMedicalSearchFor(term);
 });
 
-document.querySelectorAll('.filter-check').forEach((input) => input.addEventListener('change', applyFilters));
+document.querySelectorAll('.filter-check').forEach((input) => input.addEventListener('change', () => applyFilters()));
+document.querySelectorAll('input[name="distance"], input[name="rating"]').forEach((input) => input.addEventListener('change', () => applyFilters()));
+if (sortSelect) sortSelect.addEventListener('change', () => applyFilters());
+loadMore.addEventListener('click', () => {
+  shown += PAGE_SIZE;
+  applyFilters({ resetPage: false });
+});
+collapseResults?.addEventListener('click', () => {
+  shown = PAGE_SIZE;
+  applyFilters({ resetPage: false });
+  /* Collapsing from the bottom of a long list would otherwise leave the user
+     staring at whatever is now below the list. */
+  providerList.scrollIntoView({ behavior: 'smooth', block: 'start' });
+});
 filterToggle.addEventListener('click', () => filters.classList.toggle('open'));
 clearFilters.addEventListener('click', () => {
   document.querySelectorAll('.filter-check').forEach((input) => { input.checked = false; });
+  const anyDistance = document.querySelector('input[name="distance"][value="any"]');
+  const anyRating = document.querySelector('input[name="rating"][value="0"]');
+  if (anyDistance) anyDistance.checked = true;
+  if (anyRating) anyRating.checked = true;
   applyFilters();
 });
 resetResults.addEventListener('click', () => clearFilters.click());
 document.querySelectorAll('.save-button').forEach((button) => button.addEventListener('click', () => {
   button.classList.toggle('saved');
-  button.textContent = button.classList.contains('saved') ? '♥' : '♡';
+  button.textContent = button.classList.contains('saved') ? '\u2665' : '\u2661';
   button.setAttribute('aria-pressed', button.classList.contains('saved'));
 }));
 document.querySelectorAll('.popular-searches button').forEach((button) => button.addEventListener('click', () => {
@@ -133,7 +236,7 @@ function revealMedicalSearch() {
   medicalSearch.classList.add('is-entering');
   medicalSearch.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
-specialtyInput.addEventListener('change', updateHeading);
+specialtyInput.addEventListener('change', () => applyFilters());
 document.querySelectorAll('.medical-search-trigger').forEach((button) => button.addEventListener('click', () => {
   document.querySelector('#provider-directory-panel').hidden = false;
   document.querySelector('#provider-directory-panel').scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -148,22 +251,35 @@ document.querySelector('#medical-search-form').addEventListener('submit', (event
   toast.classList.add('show');
   setTimeout(() => toast.classList.remove('show'), 2400);
 });
+/* Topic chips used to only relabel a heading. They now filter, and they stay
+   in sync with the search box rather than fighting it. */
+const faqSearchInput = document.querySelector('#faq-search');
+let faqTopic = 'all';
+
+function applyFaqFilter() {
+  const query = (faqSearchInput ? faqSearchInput.value : '').toLowerCase().trim();
+  let matches = 0;
+  document.querySelectorAll('.faq-page-list details').forEach((item) => {
+    const onTopic = faqTopic === 'all' || item.dataset.topic === faqTopic;
+    const onQuery = !query || item.dataset.faq.includes(query) || item.textContent.toLowerCase().includes(query);
+    const visible = onTopic && onQuery;
+    item.hidden = !visible;
+    if (visible) matches += 1;
+  });
+  /* Hide a group heading once every question under it is filtered out. */
+  document.querySelectorAll('.faq-group').forEach((group) => {
+    group.hidden = ![...group.querySelectorAll('details')].some((item) => !item.hidden);
+  });
+  document.querySelector('#faq-empty').hidden = matches !== 0;
+}
+
 document.querySelectorAll('.faq-topic').forEach((topic) => topic.addEventListener('click', () => {
   document.querySelectorAll('.faq-topic').forEach((item) => item.classList.remove('active'));
   topic.classList.add('active');
-  document.querySelector('.faq-group-label').textContent = topic.textContent.replace(/\d+/g, '').trim();
+  faqTopic = topic.dataset.topic || 'all';
+  applyFaqFilter();
 }));
-document.querySelector('#faq-search').addEventListener('input', (event) => {
-  const query = event.target.value.toLowerCase().trim();
-  const questions = [...document.querySelectorAll('.faq-modern-layout details')];
-  let matches = 0;
-  questions.forEach((question) => {
-    const visible = !query || question.dataset.faq.includes(query) || question.textContent.toLowerCase().includes(query);
-    question.hidden = !visible;
-    if (visible) matches += 1;
-  });
-  document.querySelector('#faq-empty').hidden = matches !== 0;
-});
+if (faqSearchInput) faqSearchInput.addEventListener('input', applyFaqFilter);
 document.querySelector('#faq-support-button').addEventListener('click', () => bookingDialog.showModal());
 
 const pageViews = [...document.querySelectorAll('.page-view')];
@@ -180,7 +296,6 @@ function showRoute() {
   else if (route !== 'home') document.querySelector(`#${route}`)?.scrollIntoView({ behavior: 'smooth' });
 }
 window.addEventListener('hashchange', showRoute);
-showRoute();
 /* A cold load with a route hash lets the browser jump to the anchor, which
    scrolls the header off screen. Pin routed pages back to the top. */
 window.addEventListener('load', () => {
@@ -598,10 +713,6 @@ document.querySelector('#provider-search-form').addEventListener('submit', (even
    .suggestion-list styles that were already in the sheet but unwired. */
 (() => {
   const LOCATIONS = [
-    { city: 'New York, NY', zip: '10024' },
-    { city: 'Brooklyn, NY', zip: '11201' },
-    { city: 'Queens, NY', zip: '11101' },
-    { city: 'Jersey City, NJ', zip: '07302' },
     { city: 'Seattle, WA', zip: '98101' },
     { city: 'Bellevue, WA', zip: '98004' },
     { city: 'Edmonds, WA', zip: '98020' },
@@ -621,8 +732,8 @@ document.querySelector('#provider-search-form').addEventListener('submit', (even
     const needle = term.trim().toLowerCase();
     if (!needle) return LOCATIONS.slice(0, 5);
     const starts = LOCATIONS.filter((place) => place.city.toLowerCase().startsWith(needle) || place.zip.startsWith(needle));
-    /* Match later words too ("york" -> New York), but not mid-word noise
-       ("se" should not surface Jersey City). */
+    /* Match later words too ("creek" -> Mill Creek), but not mid-word noise
+       ("ver" should not surface Everett). */
     const words = LOCATIONS.filter((place) => !starts.includes(place)
       && place.city.toLowerCase().split(/[\s,]+/).some((word) => word.startsWith(needle)));
     return [...starts, ...words].slice(0, LIMIT);
@@ -728,10 +839,24 @@ document.querySelector('#provider-search-form').addEventListener('submit', (even
    left in place and only replaced once the library has actually loaded, so a
    blocked CDN or offline session still shows the stylised fallback. */
 (() => {
+  /* Seattle, to match the network's stated Pacific Northwest footprint and the
+     Washington clinics in the featured strip. */
+  /* Seattle, matching the network's Pacific Northwest footprint. Names and
+     order mirror the cards in #provider-list so the map can follow the list. */
   const PROVIDERS = [
-    { name: 'Harbor Health Chiropractic', detail: 'Chiropractic care · 0.8 mi', street: '218 West 79th Street', coords: [40.7829, -73.9787] },
-    { name: 'Northstar Spine & Rehab', detail: 'Rehabilitation · 1.6 mi', street: '104 West 40th Street', coords: [40.7549, -73.984] },
-    { name: 'The Motion Clinic', detail: 'Auto injury · 2.1 mi', street: '245 Tenth Avenue', coords: [40.7465, -74.0014] },
+    { name: 'Harbor Health Chiropractic', detail: 'Chiropractic care · 0.8 mi', street: '218 Pine Street', city: 'Seattle', coords: [47.6101, -122.3379] },
+    { name: 'Northstar Spine & Rehab', detail: 'Chiropractic care · 1.6 mi', street: '1420 Fifth Avenue', city: 'Seattle', coords: [47.6088, -122.3352] },
+    { name: 'The Motion Clinic', detail: 'Chiropractic care · 2.1 mi', street: '500 Denny Way', city: 'Seattle', coords: [47.6188, -122.3407] },
+    { name: 'Cascade Injury & Spine', detail: 'Chiropractic care · 3.4 mi', street: '2200 Westlake Avenue', city: 'Seattle', coords: [47.6175, -122.3385] },
+    { name: 'Northwest Urgent Care', detail: 'Urgent care · 1.9 mi', street: '900 Third Avenue', city: 'Seattle', coords: [47.6045, -122.3336] },
+    { name: 'Emerald City Acupuncture', detail: 'Acupuncture · 2.8 mi', street: '720 Broadway E', city: 'Seattle', coords: [47.6280, -122.3208] },
+    { name: 'Anchor Behavioral Health', detail: 'Licensed mental health · 3.1 mi', street: '300 Elliott Avenue W', city: 'Seattle', coords: [47.6205, -122.3593] },
+    { name: 'Sound Imaging Center', detail: 'Radiology · 4.7 mi', street: '1101 Madison Street', city: 'Seattle', coords: [47.6089, -122.3255] },
+    { name: 'Puget Sound Physical Therapy', detail: 'Physical therapy · 5.2 mi', street: '10655 NE 4th Street', city: 'Bellevue', coords: [47.6157, -122.2010] },
+    { name: 'Evergreen Motion Therapy', detail: 'Physical therapy · 6.1 mi', street: '1407 116th Avenue NE', city: 'Bellevue', coords: [47.6236, -122.1889] },
+    { name: 'Lakeside Neuro & TBI Clinic', detail: 'Traumatic brain injury · 5.9 mi', street: '1750 112th Avenue NE', city: 'Bellevue', coords: [47.6191, -122.1955] },
+    { name: 'Rainier Massage & Recovery', detail: 'Massage therapy · 7.8 mi', street: '3223 Rainier Avenue S', city: 'Seattle', coords: [47.5735, -122.2895] },
+    { name: 'Summit Orthopedic Associates', detail: 'Orthopedic surgery · 9.3 mi', street: '1600 116th Avenue NE', city: 'Bellevue', coords: [47.6270, -122.1875] },
   ];
   const TILES = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
   const ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
@@ -744,7 +869,14 @@ document.querySelector('#provider-search-form').addEventListener('submit', (even
     popupAnchor: [0, -28],
   });
 
-  const BOUNDS = () => L.latLngBounds(PROVIDERS.map((provider) => provider.coords));
+  /* The map mirrors whatever the list is currently showing, so a filtered-out
+     clinic cannot linger as a pin. */
+  let activeNames = PROVIDERS.map((provider) => provider.name);
+  const shownProviders = () => {
+    const picked = PROVIDERS.filter((provider) => activeNames.includes(provider.name));
+    return picked.length ? picked : PROVIDERS;
+  };
+  const BOUNDS = () => L.latLngBounds(shownProviders().map((provider) => provider.coords));
   let resultsMap = null;
   let profileMap = null;
   let profileMarker = null;
@@ -764,16 +896,26 @@ document.querySelector('#provider-search-form').addEventListener('submit', (even
     canvas.textContent = '';
     resultsMap = L.map(canvas, { scrollWheelZoom: false, attributionControl: true });
     L.tileLayer(TILES, { attribution: ATTRIBUTION, maxZoom: 19 }).addTo(resultsMap);
-    const markers = PROVIDERS.map((provider, index) => {
-      const marker = L.marker(provider.coords, {
-        icon: pin(index + 1, index === 0),
-        title: provider.name,
-        alt: provider.name,
-      }).addTo(resultsMap);
-      marker.bindPopup(`<strong>${provider.name}</strong><small>${provider.detail}</small>`);
-      marker.on('click', () => markers.forEach((item, i) => item.setIcon(pin(i + 1, item === marker))));
-      return marker;
-    });
+    const markers = new Map();
+    const drawMarkers = () => {
+      markers.forEach((marker) => resultsMap.removeLayer(marker));
+      markers.clear();
+      shownProviders().forEach((provider, index) => {
+        const marker = L.marker(provider.coords, {
+          icon: pin(index + 1, index === 0),
+          title: provider.name,
+          alt: provider.name,
+        }).addTo(resultsMap);
+        marker.bindPopup(`<strong>${provider.name}</strong><small>${provider.detail}</small>`);
+        marker.on('click', () => {
+          let position = 0;
+          markers.forEach((item) => { position += 1; item.setIcon(pin(position, item === marker)); });
+        });
+        markers.set(provider.name, marker);
+      });
+    };
+    drawMarkers();
+    document.addEventListener('results:change', () => { drawMarkers(); fitResults(); });
     fitResults();
   };
 
@@ -788,7 +930,7 @@ document.querySelector('#provider-search-form').addEventListener('submit', (even
     container.appendChild(canvas);
     if (address) container.appendChild(address);
     profileMap = L.map(canvas, { scrollWheelZoom: false, zoomControl: false }).setView(PROVIDERS[0].coords, 15);
-    L.control.zoom({ position: 'topright' }).addTo(profileMap);
+    L.control.zoom({ position: 'topleft' }).addTo(profileMap);
     L.tileLayer(TILES, { attribution: ATTRIBUTION, maxZoom: 19 }).addTo(profileMap);
     profileMarker = L.marker(PROVIDERS[0].coords, { icon: pin('●', true), alt: PROVIDERS[0].name }).addTo(profileMap);
   };
@@ -803,13 +945,54 @@ document.querySelector('#provider-search-form').addEventListener('submit', (even
       profileAddress.querySelector('span').textContent = provider.street;
     }
     const dialogAddress = document.querySelector('#dialog-provider-address');
-    if (dialogAddress) dialogAddress.textContent = `${provider.street}, New York`;
+    if (dialogAddress) dialogAddress.textContent = `${provider.street}, ${provider.city}, WA`;
   };
+
+  document.addEventListener('results:change', (event) => {
+    activeNames = event.detail.matches.map((card) => card.dataset.name);
+  });
+
+  /* The detail page gets its own small map, rebuilt whenever a different
+     provider is rendered. */
+  let detailMap = null;
+  let detailMarker = null;
+  let lastDetail = null;
+  const drawDetailMap = (data) => {
+    lastDetail = data;
+    if (typeof L === 'undefined') return;
+    const canvas = document.querySelector('#detail-map');
+    if (!canvas) return;
+    if (!detailMap) {
+      canvas.textContent = '';
+      detailMap = L.map(canvas, { scrollWheelZoom: false, zoomControl: false });
+      L.control.zoom({ position: 'topright' }).addTo(detailMap);
+      L.tileLayer(TILES, { attribution: ATTRIBUTION, maxZoom: 19 }).addTo(detailMap);
+    }
+    detailMap.setView(data.coords, 14);
+    if (detailMarker) detailMap.removeLayer(detailMarker);
+    detailMarker = L.marker(data.coords, { icon: pin('●', true), alt: data.name }).addTo(detailMap);
+    detailMarker.bindPopup(`<strong>${data.name}</strong><small>${data.street}</small>`);
+    setTimeout(() => detailMap.invalidateSize(), 80);
+  };
+  document.addEventListener('provider:detail', (event) => drawDetailMap(event.detail));
 
   const start = () => {
     if (typeof L === 'undefined') return;
     buildResultsMap();
     buildProfileMap();
+    /* The detail map is built inside a closed <dialog>, so its container is
+       0x0 until the dialog opens. Re-measure and re-centre on open. */
+    const detailDialog = document.querySelector('#provider-detail-dialog');
+    if (detailDialog) new MutationObserver(() => {
+      if (!detailDialog.open) return;
+      if (!detailMap && lastDetail) drawDetailMap(lastDetail);
+      setTimeout(() => {
+        if (!detailMap) return;
+        detailMap.invalidateSize();
+        if (lastDetail) detailMap.setView(lastDetail.coords, 14);
+      }, 70);
+    }).observe(detailDialog, { attributes: true, attributeFilter: ['open'] });
+
     /* Leaflet needs a resize nudge whenever a hidden container is revealed. */
     [listView, mapView].forEach((button) => button.addEventListener('click', () => setTimeout(fitResults, 60)));
     new MutationObserver(() => {
@@ -823,3 +1006,326 @@ document.querySelector('#provider-search-form').addEventListener('submit', (even
   if (document.readyState === 'complete') start();
   else window.addEventListener('load', start);
 })();
+
+/* Paint the results panel once on boot so the count, the availability badges
+   and the "show more" button start out describing the real list. */
+applyFilters();
+
+/* Prototype affordances that had no destination. They were href="#", which
+   cleared the hash route and bounced the user to the home page. */
+document.querySelector('.provider-link')?.addEventListener('click', () => {
+  toast.textContent = 'Provider enrolment opens in the full build.';
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 2400);
+});
+document.querySelector('.insurance-link')?.addEventListener('click', () => {
+  toast.textContent = 'Insurance coverage check opens in the full build.';
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 2400);
+});
+
+/* ---- Category tiles route into the real search ---------------------------
+   Every tile on #all-categories (and the homepage specialty tiles) selects the
+   matching option in the specialty dropdown, re-runs the filters, and drops the
+   user on the results list. Previously they all pointed at #medical-providers
+   regardless of which category was clicked. */
+function searchSpecialty(slug) {
+  const option = [...specialtyInput.options].find((item) => item.textContent.trim().toLowerCase() === slug.toLowerCase());
+  specialtyInput.value = option ? option.value : '';
+  applyFilters();
+
+  if (window.location.hash !== '#home') window.location.hash = '#home';
+  else showRoute();
+  requestAnimationFrame(() => {
+    document.querySelector('#providers')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+}
+
+document.querySelectorAll('.cat-tile').forEach((tile) => tile.addEventListener('click', () => {
+  searchSpecialty(tile.dataset.specialty);
+}));
+
+/* The homepage "smart search categories" tiles carry the same labels. */
+document.querySelectorAll('.specialty-grid a[href="#medical-providers"]').forEach((tile) => {
+  const label = tile.querySelector('strong')?.textContent.trim();
+  if (!label) return;
+  const known = [...specialtyInput.options].some((item) => item.textContent.trim().toLowerCase() === label.toLowerCase());
+  if (!known) return;
+  tile.addEventListener('click', (event) => { event.preventDefault(); searchSpecialty(label); });
+});
+
+
+/* ---- Prototype affordances on the new provider-facing page ---- */
+const notifyProto = (message) => {
+  toast.textContent = message;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 2600);
+};
+['#provider-join', '#provider-join-2'].forEach((id) => document.querySelector(id)
+  ?.addEventListener('click', () => notifyProto('Provider applications open in the full build.')));
+document.querySelector('#partner-enquiry')?.addEventListener('click', () => notifyProto('Partnership enquiries open in the full build.'));
+document.querySelectorAll('.ccc-partner, .ccc-cta').forEach((button) => button
+  .addEventListener('click', () => notifyProto('CCC course catalogue opens in the full build.')));
+
+applyFaqFilter();
+
+/* Footer placeholders were <a> with no href: styled like links but not
+   focusable and not announced as links. Now buttons with honest feedback. */
+document.querySelectorAll('.legal-link, .social-link, .directions-link').forEach((button) => {
+  button.addEventListener('click', () => {
+    const label = button.textContent.replace(' ↗', '').trim();
+    notifyProto(`${label} opens in the full build.`);
+  });
+});
+
+/* ---- Provider detail pages -------------------------------------------------
+   Each featured clinic gets its own route (#provider/<slug>) so the page is
+   linkable and the back button works, rather than being a modal. */
+const PROVIDER_PROFILES = {
+  'nu-star': {
+    name: 'Nu-Star Chiropractic Clinic', city: 'Edmonds', zip: '98020', initials: 'NS', logo: 'logo-one',
+    phone: '(425) 712-0307', street: '18904 Hwy 99 Suite K', region: 'Edmonds, WA 98020',
+    coords: [47.8107, -122.3774], rankNote: 'Chiropractor in 98020',
+    rating: 4.9, reviews: 18, years: 12, languages: ['English', 'French', 'Spanish'],
+    services: ['Chiropractic', 'Massage therapy', 'Physical therapy', 'Traumatic brain injury'],
+    doctor: {
+      name: 'Dr. Justin McCormick, D.C.', meta: '52 years old · 24 years in practice',
+      school: 'Central and Western Washington University',
+      bio: [
+        'Dr. McCormick was born and raised in the Seattle area. His interest in chiropractic care started young, in large part because two of his uncles practised it, and he went on to study at Central and Western Washington University.',
+        'After completing his prerequisites he earned his doctorate at Palmer College of Chiropractic in Iowa. He opened his first practice in 2001, sold it four years later, and returned to the Pacific Northwest.',
+        'He has since performed well over 90,000 treatments, working with patients whose pain ranges from minimal and acute to chronic and unresolved. He speaks regularly at community events about chronic pain, prevention and long-term wellness.',
+      ],
+    },
+    about: [
+      'Nu-Star Chiropractic Clinic has treated collision-injured patients across Snohomish County since 2013. The clinic handles the documentation an insurance claim depends on, so treatment notes, imaging referrals and progress reports arrive in the form adjusters and attorneys expect.',
+      'Same-week appointments are typically available for new collision patients, and the clinic coordinates directly with physical therapy and imaging partners in the network.',
+    ],
+    reviewList: [
+      { author: 'Marisol R.', stars: 5, text: 'They got me in two days after my accident and handled every piece of paperwork my insurer asked for. I never had to chase anything.' },
+      { author: 'Devon T.', stars: 5, text: 'Straightforward about how long recovery would take. No upselling, no endless treatment plan.' },
+      { author: 'Priya N.', stars: 4, text: 'Great care and very thorough notes. Parking is tight at peak times.' },
+    ],
+  },
+  'impact-physical-therapy': {
+    name: 'Impact Physical Therapy', city: 'Lynnwood', zip: '98036', initials: 'IP', logo: 'logo-five',
+    phone: '(425) 640-9112', street: '19031 33rd Ave W Suite 210', region: 'Lynnwood, WA 98036',
+    coords: [47.8209, -122.3151], rankNote: 'Physical therapist in 98036',
+    rating: 4.8, reviews: 64, years: 9, languages: ['English', 'Korean', 'Spanish'],
+    services: ['Physical therapy', 'Post-collision rehab', 'Manual therapy', 'Return-to-work programmes'],
+    doctor: {
+      name: 'Dr. Alina Vargas, DPT', meta: '41 years old · 16 years in practice',
+      school: 'University of Washington, Doctor of Physical Therapy',
+      bio: [
+        'Dr. Vargas built her practice around people recovering from motor vehicle collisions, where the injury is often soft-tissue and the recovery is measured in months rather than weeks.',
+        'Her programmes start with restoring range of motion, then rebuild strength and load tolerance in stages, with objective measurements at each visit so progress is documented rather than described.',
+        'She works closely with chiropractors and pain management specialists in the network when a patient needs more than movement therapy alone.',
+      ],
+    },
+    about: [
+      'Impact Physical Therapy focuses on collision recovery, from whiplash and lower back injury through to post-surgical rehabilitation. Every plan of care is written with the insurance claim in mind.',
+      'The clinic runs extended morning hours so patients can attend before work, and offers a home programme with video guidance between visits.',
+    ],
+    reviewList: [
+      { author: 'Chris B.', stars: 5, text: 'Measured everything at every visit, so I could actually see I was improving instead of guessing.' },
+      { author: 'Hana S.', stars: 5, text: 'They explained exactly which parts of my treatment my PIP would cover before we started.' },
+      { author: 'Owen D.', stars: 4, text: 'Very good therapists. Booking the early slots takes some planning.' },
+    ],
+  },
+  'dynamic-chiros': {
+    name: 'Dynamic Chiros', city: 'Redmond', zip: '98052', initials: 'DA', logo: 'logo-two',
+    phone: '(425) 883-4460', street: '8195 166th Ave NE Suite 210', region: 'Redmond, WA 98052',
+    coords: [47.6795, -122.1214], rankNote: 'Chiropractor in 98052',
+    rating: 4.9, reviews: 132, years: 15, languages: ['English', 'Mandarin', 'Hindi'],
+    services: ['Chiropractic', 'Whiplash recovery', 'Spinal decompression', 'Massage therapy'],
+    doctor: {
+      name: 'Dr. Priya Raghavan, D.C.', meta: '46 years old · 19 years in practice',
+      school: 'Palmer College of Chiropractic, West Campus',
+      bio: [
+        'Dr. Raghavan has spent most of her career treating collision injuries on the Eastside, and is a frequent speaker on whiplash-associated disorders.',
+        'She favours a conservative, staged approach: settle the acute inflammation, restore joint motion, then rebuild the supporting musculature, escalating only when imaging or symptoms call for it.',
+        'Outside the clinic she coaches a youth football team and is a keen long-distance cyclist.',
+      ],
+    },
+    about: [
+      'Dynamic Chiros is one of the longest-running collision injury practices in Redmond, with on-site digital X-ray and spinal decompression.',
+      'The team routinely coordinates with attorneys and adjusters, and can provide narrative reports on request.',
+    ],
+    reviewList: [
+      { author: 'Sam K.', stars: 5, text: 'Fifteen years in the same place for a reason. They know exactly what a claim needs.' },
+      { author: 'Leah M.', stars: 5, text: 'The X-ray on site saved me a separate trip to an imaging centre.' },
+      { author: 'Tom A.', stars: 5, text: 'Honest about when I no longer needed to come in. That earned my trust.' },
+    ],
+  },
+  'core-accident-injury': {
+    name: 'Core Accident Injury', city: 'Tacoma', zip: '98402', initials: 'CC', logo: 'logo-three',
+    phone: '(253) 507-2288', street: '1201 Pacific Ave Suite 600', region: 'Tacoma, WA 98402',
+    coords: [47.2529, -122.4443], rankNote: 'Chiropractor in 98402',
+    rating: 4.7, reviews: 89, years: 7, languages: ['English', 'Spanish', 'Vietnamese'],
+    services: ['Chiropractic', 'Pain management', 'Imaging referrals', 'Massage therapy'],
+    doctor: {
+      name: 'Dr. Marcus Ellery, D.C.', meta: '38 years old · 11 years in practice',
+      school: 'Life Chiropractic College West',
+      bio: [
+        'Dr. Ellery opened Core Accident Injury to serve South Sound drivers who were being turned away by clinics unwilling to handle collision paperwork.',
+        'The practice takes patients on a lien basis where appropriate, so treatment can begin before a claim settles.',
+        'He is a CCC-certified provider and sits on the network’s provider advisory group.',
+      ],
+    },
+    about: [
+      'Core Accident Injury treats collision patients exclusively, and is set up for people who are uninsured or waiting on a settlement.',
+      'Interpreters are available for Spanish and Vietnamese speakers without advance notice.',
+    ],
+    reviewList: [
+      { author: 'Rosa L.', stars: 5, text: 'I had no insurance and they still started treatment. That mattered more than I can say.' },
+      { author: 'Jerome W.', stars: 5, text: 'Interpreter was there the same day. My mother could follow her own appointment.' },
+      { author: 'Katie P.', stars: 4, text: 'Very good clinic. Waiting room can be busy on Mondays.' },
+    ],
+  },
+  'planet-chiropractic': {
+    name: 'Planet Chiropractic', city: 'Mill Creek', zip: '98012', initials: 'PC', logo: 'logo-four',
+    phone: '(425) 337-1900', street: '15111 Main St Suite 104', region: 'Mill Creek, WA 98012',
+    coords: [47.8601, -122.2043], rankNote: 'Chiropractor in 98012',
+    rating: 4.8, reviews: 76, years: 20, languages: ['English', 'Spanish'],
+    services: ['Chiropractic', 'Sports injury', 'Massage therapy', 'Wellness care'],
+    doctor: {
+      name: 'Dr. Ryan Whitfield, D.C.', meta: '55 years old · 24 years in practice',
+      school: 'Palmer College of Chiropractic',
+      bio: [
+        'Dr. Whitfield opened his first practice in Salt Lake City in 2001, then returned to the Pacific Northwest and founded Planet Chiropractic of Mill Creek in 2005.',
+        'Two decades on, much of the practice is collision work, alongside the sports and wellness patients who have been with him since the beginning.',
+        'He is a purple belt in Kempo martial arts and spends his weekends hiking with his two dogs.',
+      ],
+    },
+    about: [
+      'Planet Chiropractic has served Mill Creek since 2005 and is among the longest-established practices in the network.',
+      'The clinic offers evening appointments twice a week for patients who cannot attend during working hours.',
+    ],
+    reviewList: [
+      { author: 'Nina G.', stars: 5, text: 'Twenty years of experience shows. He found the problem in one visit.' },
+      { author: 'Aaron F.', stars: 5, text: 'Evening appointments meant I did not have to take time off work.' },
+      { author: 'Beth C.', stars: 4, text: 'Warm, unhurried appointments. Reception could be quicker to answer the phone.' },
+    ],
+  },
+};
+
+const HOURS = [['Mon', '9am – 5pm'], ['Tues', '9am – 5pm'], ['Weds', '9am – 5pm'], ['Thurs', '9am – 5pm'], ['Fri', '9am – 5pm'], ['Sat', 'Closed'], ['Sun', 'Closed']];
+
+function renderProviderDetail(slug) {
+  const data = PROVIDER_PROFILES[slug];
+  if (!data) return false;
+  const set = (id, value) => { const el = document.querySelector(id); if (el) el.textContent = value; };
+
+  set('#crumb-city', data.city);
+  set('#crumb-name', data.name);
+  set('#detail-name', data.name);
+  set('#detail-phone', data.phone);
+  set('#detail-rank-note', data.rankNote);
+  set('#detail-years', `${data.years} yrs in business`);
+  set('#detail-langs', data.languages.join(', '));
+
+  const logo = document.querySelector('#detail-logo');
+  logo.textContent = data.initials;
+  logo.className = `detail-logo provider-logo ${data.logo}`;
+
+  document.querySelector('#detail-address').innerHTML = `${data.street}<br>${data.region}`;
+
+  const full = Math.round(data.rating);
+  document.querySelector('#detail-stars').innerHTML =
+    `<b aria-hidden="true">${'★'.repeat(full)}${'☆'.repeat(5 - full)}</b> <span>${data.rating} (${data.reviews})</span>`;
+  document.querySelector('#detail-stars').setAttribute('aria-label', `${data.rating} out of 5 from ${data.reviews} reviews`);
+
+  const doc = data.doctor;
+  set('#doc-name', doc.name);
+  set('#doc-meta', doc.meta);
+  set('#doc-school', doc.school);
+  document.querySelector('#doc-avatar').textContent = doc.name.replace(/^Dr\.\s*/, '').split(' ').map((w) => w[0]).slice(0, 2).join('');
+  document.querySelector('#doc-bio').innerHTML = doc.bio.map((para) => `<p>${para}</p>`).join('');
+  document.querySelector('#about-body').innerHTML = data.about.map((para) => `<p>${para}</p>`).join('');
+
+  document.querySelector('#detail-hours').innerHTML = HOURS
+    .map(([day, time]) => `<div><dt>${day}</dt><dd${time === 'Closed' ? ' class="closed"' : ''}>${time}</dd></div>`).join('');
+  document.querySelector('#detail-services').innerHTML = data.services.map((s) => `<li>${s}</li>`).join('');
+
+  document.querySelector('#media-grid').innerHTML = ['Reception', 'Treatment room', 'Equipment', 'Team', 'Exterior', 'Waiting area']
+    .map((label, i) => `<figure class="media-tile media-${(i % 3) + 1}"><figcaption>${label}</figcaption></figure>`).join('');
+
+  document.querySelector('#review-list').innerHTML = data.reviewList.map((r) => `
+    <article class="review">
+      <div class="review-top"><b>${r.author}</b><span class="review-stars" aria-label="${r.stars} out of 5">${'★'.repeat(r.stars)}${'☆'.repeat(5 - r.stars)}</span></div>
+      <p>${r.text}</p>
+    </article>`).join('');
+
+  /* Reset to the first tab so a second provider does not inherit the last one's open tab. */
+  document.querySelectorAll('.detail-tab').forEach((tab, i) => {
+    tab.classList.toggle('active', i === 0);
+    tab.setAttribute('aria-selected', String(i === 0));
+  });
+  document.querySelectorAll('.detail-panel').forEach((panel, i) => {
+    panel.classList.toggle('active', i === 0);
+    panel.hidden = i !== 0;
+  });
+
+  setExplainer(false);
+  document.dispatchEvent(new CustomEvent('provider:detail', { detail: data }));
+  return true;
+}
+
+document.querySelectorAll('.detail-tab').forEach((tab) => tab.addEventListener('click', () => {
+  document.querySelectorAll('.detail-tab').forEach((item) => {
+    const on = item === tab;
+    item.classList.toggle('active', on);
+    item.setAttribute('aria-selected', String(on));
+  });
+  document.querySelectorAll('.detail-panel').forEach((panel) => {
+    const on = panel.dataset.panel === tab.dataset.tab;
+    panel.classList.toggle('active', on);
+    panel.hidden = !on;
+  });
+}));
+
+/* Clinic name -> that provider's page. The rest of the card, and "What's This?",
+   still open the ranking explainer. */
+const providerDetailDialog = document.querySelector('#provider-detail-dialog');
+const cicExplainer = document.querySelector('#cic-explainer');
+const detailCicToggle = document.querySelector('#provider-detail-dialog .cic-what');
+
+function setExplainer(open) {
+  if (!cicExplainer) return;
+  cicExplainer.hidden = !open;
+  detailCicToggle?.setAttribute('aria-expanded', String(open));
+}
+
+/* One modal now. The ranking explainer is a disclosure inside the provider
+   detail dialog, so "What's This?" opens that modal with the explainer already
+   expanded instead of stacking a second dialog on top. */
+function openProviderDetail(slug, explain) {
+  if (!renderProviderDetail(slug)) return;
+  providerDetailDialog?.showModal();
+  setExplainer(Boolean(explain));
+  if (explain) requestAnimationFrame(() => cicExplainer?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
+}
+
+detailCicToggle?.addEventListener('click', () => setExplainer(cicExplainer.hidden));
+
+document.querySelectorAll('[data-cic-info]').forEach((card) => {
+  const slug = card.querySelector('.featured-name')?.dataset.provider;
+  if (!slug) return;
+  card.addEventListener('click', () => openProviderDetail(slug, false));
+  card.querySelector('.featured-name')?.addEventListener('click', (event) => {
+    event.stopPropagation();
+    openProviderDetail(slug, false);
+  });
+  card.querySelector('.cic-what')?.addEventListener('click', (event) => {
+    event.stopPropagation();
+    openProviderDetail(slug, true);
+  });
+});
+document.querySelectorAll('.detail-link, #detail-more-langs').forEach((button) => button.addEventListener('click', () => {
+  notifyProto(`${button.dataset.proto || 'More languages'} opens in the full build.`);
+}));
+document.querySelector('#detail-book')?.addEventListener('click', () => bookingDialog.showModal());
+
+/* Boot the router last: it can render a provider detail page, which needs
+   PROVIDER_PROFILES to be initialised first. */
+showRoute();
